@@ -1,0 +1,53 @@
+# --- Entornos Virtuales ---
+# Ignorar los directorios de entornos virtuales de Python
+venv/
+env/
+.venv/
+
+# --- Archivos de Cache y Compilados de Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Archivos de Configuración Sensibles ---
+# ¡MUY IMPORTANTE! Nunca subir el archivo .env a GitHub.
+# Contiene tus claves de base de datos y secretos.
+.env
+*.env
+
+# --- Archivos de IDE y Editores ---
+.idea/
+.vscode/
+*.suo
+*.user
+*.sln.docstates
+
+# --- Archivos del Sistema Operativo ---
+.DS_Store
+Thumbs.db
+
+# --- Logs y Bases de Datos Locales ---
+*.log
+logs/
+*.sqlite3
+# Archivo de credenciales "Recordarme" (si se genera)
+remember_me.dat
+
+# --- Reportes de Pruebas y Cache ---
+# Ignorar el cache de pytest y los reportes generados
+.pytest_cache/
+htmlcov/
+.coverage
+test_stress_report.txt
+
+# --- Modelos de Lenguaje (LLMs) ---
+# Los modelos .gguf son muy grandes. Es mejor no incluirlos en el repositorio.
+# Si necesitas que la carpeta 'models' exista, puedes crear un archivo .gitkeep dentro.
+models/*.gguf
+models/model.gguf
+
+# --- Artefactos de Construcción (PyInstaller/cx_Freeze) ---
+build/
+dist/
+*.spec

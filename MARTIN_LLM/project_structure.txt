@@ -1,0 +1,45 @@
+MARTIN_LLM/
+├── .env
+├── .gitignore
+├── __init__.py
+├── build.spec
+├── MartinLLM.spec
+├── paths.py
+├── run.py
+├── app/
+│   ├── __init__.py
+│   ├── agent.py
+│   ├── chat_engine.py
+│   ├── llama_server.py
+│   ├── llm_providers.py
+│   ├── model_loader.py
+│   ├── model_selection.py
+│   ├── ollama_manager.py
+│   ├── reasoner.py
+│   ├── tools.py
+│   ├── workers.py
+│   └── services/
+│       ├── __init__.py
+│       ├── file_processing_service.py
+│       ├── login_service.py
+│       └── model_service.py
+├── data/
+│   └── (Archivos de datos, ej: database.sqlite3)
+├── logs/
+│   └── (Archivos de log generados)
+├── models/
+│   └── model.gguf
+└── ui/
+    ├── __init__.py
+    ├── chat_interface.py
+    ├── closing_dialog.py
+    ├── conversation_load_dialog.py
+    ├── llm_parameters_widget.py
+    ├── loading_dialog.py
+    ├── login_widget.py
+    ├── model_manager_widget.py
+    ├── popup_window.py
+    ├── qt_styles.py
+    ├── registration_widget.py
+    └── assets/
+        └── app_icon.ico
