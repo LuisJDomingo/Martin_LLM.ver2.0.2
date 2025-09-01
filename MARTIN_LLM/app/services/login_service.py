@@ -91,7 +91,8 @@ class UserService:
             "email": email if email else None,
             "password": hashed_password,
             "created_at": datetime.utcnow(),
-            "share_data_consent": share_data
+            "share_data_consent": share_data,
+            "first_login_completed": False # Marcar que el usuario no ha completado su primer login
         }
         result = self.users.insert_one(user_data)
         return str(result.inserted_id)
@@ -105,6 +106,48 @@ class UserService:
         if user and self._verify_password(password, user['password']):
             return str(user['_id']), user['username']
         return None
+
+    def get_user_consent(self, user_id: str) -> bool:
+        """Verifica si el usuario ha dado su consentimiento para compartir datos."""
+        if self.db is None:
+            return False # Si no hay DB, asumimos local/no consentimiento.
+        try:
+            user = self.users.find_one({"_id": ObjectId(user_id)})
+            if user:
+                # Devuelve el valor de consentimiento, o False si el campo no existe (usuarios antiguos)
+                return user.get("share_data_consent", False)
+            return False
+        except Exception as e:
+            print(f"Error al verificar consentimiento para {user_id}: {e}")
+            return False
+
+    def is_first_login(self, user_id: str) -> bool:
+        """Verifica si es el primer inicio de sesión del usuario."""
+        if self.db is None:
+            return False # No hay DB, no es primer login
+        
+        try:
+            user = self.users.find_one({"_id": ObjectId(user_id)})
+            if user:
+                # Si el campo no existe (usuarios antiguos), se considera primer login.
+                return not user.get("first_login_completed", False)
+            return False
+        except Exception as e:
+            print(f"Error al verificar el primer login para {user_id}: {e}")
+            return False
+
+    def mark_first_login_completed(self, user_id: str):
+        """Marca que el usuario ha completado su primer inicio de sesión."""
+        if self.db is None:
+            return
+        
+        try:
+            self.users.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": {"first_login_completed": True}}
+            )
+        except Exception as e:
+            print(f"Error al marcar el primer login para {user_id}: {e}")
 
     def _send_reset_email(self, to_email: str, username: str, reset_token: str):
             """Envía un correo real con el enlace de recuperación de contraseña."""

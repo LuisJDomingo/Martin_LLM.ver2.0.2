@@ -14,16 +14,17 @@ from PyQt6.QtWidgets import ( # Limpiando importaciones duplicadas
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QThread, QPoint, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QIcon, QPixmap, QFontMetrics
-import markdown
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.style as mpl_style
 import psutil
 
+import markdown
 from app.llm_providers import BaseLLMProvider, LlamaCppProvider, OllamaProvider
 from app.services.file_processing_service import extract_text
 from app.services.login_service import UserService
+from app.services.local_persistence_service import LocalPersistenceService
 from app.ollama_manager import OllamaManager # Asegúrate que esta clase existe y funciona
 from app.chat_engine import ChatEngine, SYSTEM_PROMPT
 import qtawesome as qta
@@ -222,6 +223,7 @@ class ChatInterface(QMainWindow, FramelessWindowMixin):
         # Usamos las instancias pasadas por el controlador
         self.chat_engine = chat_engine
         self.user_service = user_service
+        self.persistence_service = None # Se inicializará después de comprobar el consentimiento
         self.cleanup_in_progress = False
         self.is_ready_to_close = False
         self._init_frameless_mixin()
@@ -235,6 +237,16 @@ class ChatInterface(QMainWindow, FramelessWindowMixin):
         self.process_log_window = ProcessLogWindow(parent=self)
         self.process_log_window.hide() # Ocultar por defecto
 
+        # --- Lógica de selección de persistencia ---
+        has_consent = self.user_service.get_user_consent(self.user_id)
+        if has_consent:
+            print("[DEBUG] El usuario ha consentido. Usando persistencia en MongoDB.")
+            self.persistence_service = self.user_service
+        else:
+            print("[DEBUG] El usuario NO ha consentido. Usando persistencia local (TinyDB).")
+            self.persistence_service = LocalPersistenceService(self.username)
+            self.add_system_message("Tus conversaciones se guardarán localmente en tu PC.", show_rating_buttons=False)
+
         # --- INICIALIZACIÓN DIRECTA Y ROBUSTA ---
         # Se elimina la inicialización en segundo plano. Todo se hace ahora de forma síncrona.
         self.resize(1400, 900)
@@ -242,29 +254,55 @@ class ChatInterface(QMainWindow, FramelessWindowMixin):
         self.populate_installed_models_combo()
         self.populate_recent_conversations()
         self.setup_stats_timer()
-        self.display_welcome_message()
+
+        # Lógica para mostrar mensaje de bienvenida o normal
+        if self.user_service.is_first_login(self.user_id):
+            self.display_welcome_message()
+            self.user_service.mark_first_login_completed(self.user_id)
+        else:
+            return_message = {"role": "assistant", "content": f"¡Hola de nuevo, {self.username}! ¿En qué puedo ayudarte hoy?"}
+            self.add_to_history(return_message, show_rating_buttons=False)
+
 
 
     def display_welcome_message(self):
-        """Muestra un mensaje de bienvenida con instrucciones en el historial de chat."""
-        welcome_text = """¡Bienvenido a Martin LLM!
-
+        """Muestra un mensaje de bienvenida distinto según el consentimiento del usuario."""
+        
+        # Partes comunes del mensaje
+        greeting = f"### ¡Bienvenido a Martin LLM, {self.username}!"
+        instructions = """
 Aquí tienes una guía rápida para empezar:
 
-1.  **Selecciona un Modelo**: Usa el menú desplegable en la parte inferior para elegir un modelo. Si no tienes ninguno, haz clic en "Gestionar Modelos" en el panel derecho para instalar uno.
+*   **Selecciona un Modelo:** Usa el menú desplegable en la parte inferior para elegir un modelo. Si no tienes ninguno, haz clic en *Gestionar Modelos* en el panel derecho para instalar uno.
+*   **Elige un Modo:**
+    *   **Chat:** Para una conversación normal.
+    *   **Agente:** Para darle al modelo acceso a herramientas y que pueda completar tareas.
+    *   **Razonador:** Para problemas complejos que requieren planificación.
+*   **Inicia la Conversación:** Escribe tu mensaje en el cuadro de texto y presiona *Enter* o el botón de enviar.
+*   **Gestiona tus Chats:** Usa el panel izquierdo (puedes mostrarlo con el botón de comentarios en la parte superior) para ver, cargar, renombrar o eliminar conversaciones anteriores.
 
-2.  **Elige un Modo**:
-    - **Chat**: Para una conversación normal.
-    - **Agente**: Para darle al modelo acceso a herramientas y que pueda completar tareas.
-    - **Razonador**: Para problemas complejos que requieren planificación.
-
-3.  **Inicia la Conversación**: Escribe tu mensaje en el cuadro de texto y presiona Enter o el botón de enviar.
-
-4.  **Gestiona tus Chats**: Usa el panel izquierdo (puedes mostrarlo con el botón de comentarios en la parte superior) para ver, cargar, renombrar o eliminar conversaciones anteriores.
-
-¡Disfruta de tu asistente de IA personal!"""
-        welcome_message = {"role": "assistant", "content": welcome_text}
-        self.add_to_history(welcome_message, show_rating_buttons=False, is_markdown=True)
+¡Disfruta de tu asistente de IA personal!
+        """
+        
+        has_consent = self.user_service.get_user_consent(self.user_id)
+        
+        if has_consent:
+            # Mensaje para usuarios que SÍ consienten
+            intro_text = "Gracias por apoyar el proyecto compartiendo tus conversaciones de forma anónima para mejorar la IA."
+            full_markdown_text = f"{greeting}\n\n{intro_text}\n\n{instructions}"
+        else:
+            # Mensaje para usuarios que NO consienten
+            privacy_note = """
+---
+> **Nota de Privacidad:** Has decidido no compartir tus conversaciones. El objetivo de compartirlas es el de mejorar la calidad de las respuestas. Si más adelante deseas apoyar el proyecto, estaremos encantados de recibir tu ayuda.
+            """
+            full_markdown_text = f"{greeting}\n\n{instructions}\n\n{privacy_note}"
+            
+        # Convertir Markdown a HTML para que QLabel lo pueda renderizar
+        html_content = markdown.markdown(full_markdown_text, extensions=['fenced_code', 'tables'])
+        
+        welcome_message = {"role": "assistant", "content": html_content}
+        self.add_to_history(welcome_message, show_rating_buttons=False)
 
     def setup_ui(self):
         """Configura la interfaz de usuario"""
@@ -356,23 +394,16 @@ Aquí tienes una guía rápida para empezar:
         self.history_scroll_area.setWidgetResizable(True)
         self.history_scroll_area.setObjectName("historyScrollArea")
 
-        # Widget to hold the messages
+        # Widget que contendrá la lista de mensajes y los stretches para centrar
         self.history_content_widget = QWidget()
-        # Layout contenedor que permitirá centrar los mensajes verticalmente
-        history_container_layout = QVBoxLayout(self.history_content_widget)
-        history_container_layout.setContentsMargins(0, 0, 0, 0)
-        history_container_layout.setSpacing(0)
-
-        # Widget que contendrá la lista real de mensajes
-        messages_widget = QWidget()
-        self.history_layout = QVBoxLayout(messages_widget)
+        self.history_layout = QVBoxLayout(self.history_content_widget)
         self.history_layout.setContentsMargins(15, 5, 15, 5)
         self.history_layout.setSpacing(15)
-        self.history_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        history_container_layout.addStretch(1)
-        history_container_layout.addWidget(messages_widget)
-        history_container_layout.addStretch(1)
+        # Añadir stretches para centrar verticalmente el contenido.
+        # Los mensajes se insertarán entre estos dos stretches.
+        self.history_layout.addStretch(1)
+        self.history_layout.addStretch(1)
 
         self.history_scroll_area.setWidget(self.history_content_widget)
         chat_layout.addWidget(self.history_scroll_area, stretch=1)
@@ -487,8 +518,14 @@ Aquí tienes una guía rápida para empezar:
 
         # Añadir los widgets al layout horizontal
         central_area_layout.addWidget(self.left_panel)
-        # El panel central de chat ocupa todo el espacio restante
-        central_area_layout.addWidget(chat_frame, 1)
+
+        # Añadir espacio vacío a los lados del panel de chat para estrecharlo.
+        # Proporción: 1 (espacio) + 6 (chat) + 1 (espacio) = 8.
+        # El chat ocupa 6/8 = 75% del espacio flexible, haciéndolo un 25% más estrecho.
+        central_area_layout.addStretch(1)
+        central_area_layout.addWidget(chat_frame, 6)
+        central_area_layout.addStretch(1)
+
         central_area_layout.addWidget(self.right_panel)
 
         parent_layout.addWidget(central_area_widget)
@@ -662,7 +699,7 @@ Aquí tienes una guía rápida para empezar:
         """Carga las conversaciones del usuario en la lista, ordenadas por fecha."""
         try:
             self.recent_convs_list.clear()
-            conversations = self.user_service.get_user_conversations(self.user_id)
+            conversations = self.persistence_service.get_user_conversations(self.user_id)
             if not conversations:
                 placeholder_item = QListWidgetItem("No hay conversaciones recientes.")
                 placeholder_item.setFlags(placeholder_item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
@@ -670,7 +707,15 @@ Aquí tienes una guía rápida para empezar:
                 return
 
             sorted_convs = sorted(conversations, key=lambda x: x.get('timestamp', datetime.min), reverse=True)
-
+            
+            # Convertir timestamps de string a datetime si es necesario (para TinyDB)
+            for conv in sorted_convs:
+                ts = conv.get('timestamp')
+                if isinstance(ts, str):
+                    try:
+                        conv['timestamp'] = datetime.fromisoformat(ts)
+                    except ValueError:
+                        conv['timestamp'] = datetime.min
             max_calculated_width = 0 # Variable para rastrear el ancho máximo necesario
 
             # --- Agrupación de conversaciones ---
@@ -788,7 +833,7 @@ Aquí tienes una guía rápida para empezar:
                                              "Nuevo título:", QLineEdit.EchoMode.Normal, 
                                              current_title)
         if ok and new_title and new_title.strip() != current_title:
-            success = self.user_service.update_conversation_title(self.user_id, conversation_id, new_title.strip())
+            success = self.persistence_service.update_conversation_title(self.user_id, conversation_id, new_title.strip())
             if success:
                 self.populate_recent_conversations()
                 # Si la conversación renombrada es la actual, actualizamos el título en el motor
@@ -802,8 +847,8 @@ Aquí tienes una guía rápida para empezar:
         reply = QMessageBox.question(self, "Confirmar Acción",
                                      "¿Estás seguro de que quieres quitar esta conversación de la lista?",
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        if reply == QMessageBox.StandardButton.Yes:
-            success = self.user_service.delete_or_archive_conversation(self.user_id, conversation_id)
+        if reply == QMessageBox.StandardButton.Yes:            
+            success = self.persistence_service.delete_or_archive_conversation(self.user_id, conversation_id)
             if success:
                 self.populate_recent_conversations()
             else:
@@ -905,15 +950,14 @@ Aquí tienes una guía rápida para empezar:
             
             # Limpiar historial y mostrar mensaje
             self.clear_history()
-            self.add_system_message(f"MODELO {display_name} CARGADO EXITOSAMENTE")
-            self.add_to_history({"role": "assistant", "content": "Sistema listo para recibir comandos."})
+            self.add_system_message(f"MODELO {display_name} CARGADO EXITOSAMENTE, Sistema listo para recibir comandos.")
 
         except Exception as e:
             error_msg = f"No se pudo cargar el modelo '{Path(model_identifier).name}':\n{e}"
             print(f"[ERROR] {error_msg}")
             QMessageBox.critical(self, "Error al Cargar Modelo", error_msg)
             self.chat_engine.provider = None
-    def _create_message_widget(self, role, content, message_obj=None, show_rating_buttons=True, is_markdown=False):
+    def _create_message_widget(self, role, content, message_obj=None, show_rating_buttons=True):
         """Crea un widget para un mensaje individual con su contenido y botones de calificación."""
         
         # Para mensajes de usuario y asistente
@@ -942,19 +986,11 @@ Aquí tienes una guía rápida para empezar:
         message_layout.addWidget(role_label)
 
         # Message content
-        content_label = QLabel()
+        content_label = QLabel(content)
         content_label.setWordWrap(True)
         content_label.setStyleSheet("background-color: #2d3748; padding: 10px; border-radius: 8px;")
-        content_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.LinksAccessibleByMouse)
-        content_label.setOpenExternalLinks(True)
+        content_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         content_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter) # Siempre alinear texto a la izquierda dentro de la burbuja
-
-        if is_markdown:
-            html_content = markdown.markdown(content, extensions=['fenced_code', 'tables'])
-            content_label.setText(html_content)
-        else:
-            content_label.setText(content)
-
         message_layout.addWidget(content_label)
 
         # Rating buttons (only for assistant messages and if enabled)
@@ -971,32 +1007,39 @@ Aquí tienes una guía rápida para empezar:
         outer_layout = QHBoxLayout()
         outer_layout.setContentsMargins(0, 0, 0, 0)
         outer_layout.setSpacing(0)
-        # La burbuja ocupará hasta un ~90% del ancho disponible para dar más espacio.
+        # La burbuja ocupará ~37.5% del ancho (9/24), ligeramente alejada del centro.
         if alignment == Qt.AlignmentFlag.AlignRight:
-            outer_layout.addStretch(1) 
+            # Más espacio a la izquierda para empujar hacia el centro-derecha
+            outer_layout.addStretch(11) 
             outer_layout.addWidget(message_widget, 9)
+            outer_layout.addStretch(4)
         else:
+            # Más espacio a la derecha para empujar hacia el centro-izquierda
+            outer_layout.addStretch(4)
             outer_layout.addWidget(message_widget, 9)
-            outer_layout.addStretch(1)
+            outer_layout.addStretch(11)
 
         container_widget = QWidget()
         container_widget.setLayout(outer_layout)
         return container_widget
 
-    def add_to_history(self, message_obj, show_rating_buttons=True, is_markdown=False):
+    def add_to_history(self, message_obj, show_rating_buttons=True):
         """Añade un mensaje al historial de la UI.
 
         Args:
             message_obj (dict): Diccionario con 'role' y 'content'.
             show_rating_buttons (bool): Si se deben mostrar los botones de rating para este mensaje.
-            is_markdown (bool): Si el contenido debe ser renderizado como Markdown.
         """
         role = message_obj.get("role", "unknown")
         content = message_obj.get("content", "")
 
-        message_widget = self._create_message_widget(role, content, message_obj, show_rating_buttons, is_markdown=is_markdown)
-        self.history_layout.addWidget(message_widget)
-        QTimer.singleShot(10, lambda: self.history_scroll_area.verticalScrollBar().setValue(self.history_scroll_area.verticalScrollBar().maximum()))
+        message_widget = self._create_message_widget(role, content, message_obj, show_rating_buttons)
+        # Insertar el nuevo mensaje justo antes del último 'stretch' para mantener el centrado.
+        self.history_layout.insertWidget(self.history_layout.count() - 1, message_widget)
+        # Usamos un QTimer con un delay de 0 para asegurar que el scroll se actualice
+        # DESPUÉS de que el event loop haya procesado los cambios en el layout.
+        # Esto es más robusto que un delay pequeño como 10ms.
+        QTimer.singleShot(0, lambda: self.history_scroll_area.verticalScrollBar().setValue(self.history_scroll_area.verticalScrollBar().maximum()))
 
     def add_system_message(self, message: str, show_rating_buttons: bool = False):
         """Muestra un mensaje del sistema en la barra de estado.
@@ -1007,12 +1050,25 @@ Aquí tienes una guía rápida para empezar:
         """
         print(f"[SYSTEM_STATUS] {message}")
         self.statusBar().showMessage(message, 7000) # Muestra el mensaje por 7 segundos
+
     def clear_history(self):
-            """Limpia el historial de chat de la UI, eliminando todos los widgets."""
-            while self.history_layout.count():
-                child = self.history_layout.takeAt(0)
-                if child.widget():
-                    child.widget().deleteLater() 
+        """Limpia el historial de chat de la UI, eliminando todos los widgets y stretches."""
+        # Bucle para eliminar todos los items del layout
+        while self.history_layout.count() > 0:
+            item = self.history_layout.takeAt(0)
+            if item is None:
+                continue
+            
+            widget = item.widget()
+            if widget is not None:
+                # Si es un widget, lo eliminamos
+                widget.deleteLater()
+            # No es necesario hacer nada con los QSpacerItem, takeAt() los quita del layout.
+
+        # Re-añadir los stretches para el centrado vertical
+        self.history_layout.addStretch(1)
+        self.history_layout.addStretch(1)
+
     def send_message(self):
         """Envía el mensaje del usuario al motor de chat."""
         user_message = self.input_text.toPlainText().strip()
@@ -1181,7 +1237,7 @@ Aquí tienes una guía rápida para empezar:
         self.clear_history()
         self.chat_engine.start_new()
         self.add_system_message("NUEVA CONVERSACIÓN INICIADA.")
-        self.add_to_history({"role": "assistant", "content": "Sistema listo para recibir comandos."})
+        self.add_system_message("Sistema listo para recibir comandos.")
         self.process_log_window.clear_log() # Limpiar el log al iniciar nueva conversación
         self.process_log_window.hide() # Ocultar la ventana de log
 
@@ -1214,7 +1270,7 @@ Aquí tienes una guía rápida para empezar:
                     "metadata": {}
                 }
                 
-                new_id = self.user_service.create_conversation(self.user_id, conv_data) # This seems to pass user_id twice, let's check the service
+                new_id = self.persistence_service.create_conversation(self.user_id, conv_data)
                 if new_id:
                     self.chat_engine.conversation_id = new_id
                     
@@ -1239,7 +1295,7 @@ Aquí tienes una guía rápida para empezar:
                     "model": self.chat_engine.provider.model_identifier # <-- AÑADIR PARA CONSISTENCIA
                 }
                 
-                self.user_service.update_conversation(
+                self.persistence_service.update_conversation(
                     self.user_id, self.chat_engine.conversation_id, conv_data_to_update)
                 
                 if not is_autosave:
@@ -1358,7 +1414,7 @@ Aquí tienes una guía rápida para empezar:
     def load_conversation(self):
         """Carga una conversación"""
         try:
-            conversations = self.user_service.get_user_conversations(self.user_id)
+            conversations = self.persistence_service.get_user_conversations(self.user_id)
             if not conversations:
                 QMessageBox.information(self, "Sin conversaciones", "No tienes conversaciones guardadas.")
                 return
@@ -1372,7 +1428,7 @@ Aquí tienes una guía rápida para empezar:
     def load_selected_conversation(self, conv_id):
         """Carga los datos de una conversación específica en la UI."""
         self.add_system_message(f"Cargando conversación ID: {conv_id}...")
-        conv_data = self.user_service.get_conversation(self.user_id, conv_id)
+        conv_data = self.persistence_service.get_conversation(self.user_id, conv_id)
         if not conv_data:
             QMessageBox.critical(self, "Error", "No se pudo cargar la conversación.")
             return
