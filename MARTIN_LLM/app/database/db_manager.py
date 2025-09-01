@@ -33,13 +33,20 @@ class DatabaseManager:
 
     def _initialize_db(self):
         """Inicializa la conexión a MongoDB o crea SQLite como respaldo"""
-        self.client = MongoClient(MONGODB_URI)
-        self.db = self.client[DB_NAME]
-        self.conversations = self.db[COLLECTION_CONVERSATIONS]
-        self.messages = self.db[COLLECTION_MESSAGES]
-
-        # Verificar conexión
-        self.client.server_info()
+        try:
+            self.client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=10000)
+            self.client.server_info()  # Forzar la conexión para verificar
+            self.db = self.client[DB_NAME]
+            self.conversations = self.db[COLLECTION_CONVERSATIONS]
+            self.messages = self.db[COLLECTION_MESSAGES]
+            print("[DEBUG] Conexión a MongoDB exitosa.")
+        except Exception as e:
+            print(f"❌ Error de conexión a MongoDB: {e}")
+            # Aquí podrías implementar la lógica de respaldo si es necesario
+            self.client = None
+            self.db = None
+            self.conversations = None
+            self.messages = None
 
 
     def create_conversation(self, model: str, title: Optional[str] = None) -> str:

@@ -88,23 +88,30 @@ class OllamaManager:
             # Asumir que no está disponible si hay un error de conexión.
             return False
 
-    def pull_model(self, model_name: str):
+    def pull_model(self, model_name: str, progress_callback=None):
         """
-        Descarga un modelo desde el registro de Ollama.
-        Esta es una operación bloqueante que puede tardar mucho tiempo.
+        Descarga un modelo desde el registro de Ollama, con soporte para streaming.
+        Invoca un callback con los datos de progreso del stream.
         """
-        print(f"[OllamaManager] Iniciando descarga del modelo: '{model_name}'. Esto puede tardar varios minutos...")
-        payload = {"name": model_name, "stream": False} # stream=False para una respuesta única al final
+        print(f"[OllamaManager] Iniciando descarga del modelo: '{model_name}'.")
+        payload = {"name": model_name, "stream": True}
         try:
-            # Usar un timeout largo para descargas grandes.
-            response = requests.post(self.api_pull_url, json=payload, timeout=900) # 15 minutos
+            # Usar un timeout largo para la conexión inicial, pero el stream puede durar mucho más.
+            response = requests.post(self.api_pull_url, json=payload, stream=True, timeout=30)
             response.raise_for_status()
-            
-            data = response.json()
-            if data.get("status") != "success":
-                error_details = data.get("error", "Error desconocido durante la descarga.")
-                raise RuntimeError(f"Ollama devolvió un error: {error_details}")
-            print(f"[OllamaManager] Modelo '{model_name}' descargado exitosamente.")
+
+            for line in response.iter_lines():
+                if line:
+                    data = json.loads(line.decode('utf-8'))
+                    
+                    if progress_callback:
+                        progress_callback(data)
+                    
+                    if "error" in data:
+                        raise RuntimeError(f"Ollama devolvió un error: {data['error']}")
+
+            print(f"[OllamaManager] Stream del modelo '{model_name}' procesado exitosamente.")
+
         except Exception as e:
             error_msg = f"Error durante la descarga del modelo '{model_name}': {e}"
             print(f"[OllamaManager] {error_msg}")

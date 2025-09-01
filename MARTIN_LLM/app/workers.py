@@ -16,7 +16,12 @@ class Worker(QObject):
 
     def run(self):
         try:
-            response = self.chat_engine.ask(self.user_message)
+            # The user message is already in chat_engine.history from the UI thread.
+            # This worker's job is to get the next response from the provider
+            # without modifying the history. The UI thread will do that.
+            if not self.chat_engine.provider:
+                raise ValueError("El proveedor del modelo no está configurado en ChatEngine.")
+            response = self.chat_engine.provider.query(self.chat_engine.history)
             self.response_ready.emit(response)
         except Exception as e:
             self.error_occurred.emit(f"Error en el worker de chat: {e}")
@@ -32,8 +37,17 @@ class AgentWorker(QObject):
         super().__init__(parent)
         self.agent = agent
         self.objective = objective
-        # Conectar el callback del agente a nuestra señal
-        self.agent.report_step_callback = self.agent_step.emit
+        # Conectar el callback del agente a nuestra señal a través del manejador
+        self.agent.report_step_callback = self._handle_agent_step
+
+    def _handle_agent_step(self, thought: str, tool_name: str, args):
+        """Recibe el paso del agente, convierte los args a str si es necesario y emite la señal."""
+        import json
+        if isinstance(args, dict):
+            args_str = json.dumps(args, ensure_ascii=False)
+        else:
+            args_str = str(args)
+        self.agent_step.emit(thought, tool_name, args_str)
 
     def run(self):
         try:

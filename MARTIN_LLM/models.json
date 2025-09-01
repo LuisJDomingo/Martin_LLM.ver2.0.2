@@ -1,0 +1,92 @@
+{
+  "models": [
+    {
+      "name": "Llama 3",
+      "size": "4.7 GB",
+      "parameters": "8B",
+      "quantization": "Q4_0",
+      "context_length": "8192",
+      "description": "Modelo de lenguaje de propósito general de Meta.",
+      "details": "Llama 3 es la última generación de los modelos de lenguaje de código abierto de Meta. Está diseñado para una amplia gama de aplicaciones, desde la conversación general hasta la generación de texto complejo. La versión 8B es ideal para un equilibrio entre rendimiento y requisitos de hardware.",
+      "tags": ["chat", "general"],
+      "download_url": ""
+    },
+    {
+      "name": "Llama 3:70B",
+      "size": "40 GB",
+      "parameters": "70B",
+      "quantization": "Q4_0",
+      "context_length": "8192",
+      "description": "Versión más grande y potente del modelo Llama 3.",
+      "details": "La variante de 70 mil millones de parámetros de Llama 3. Ofrece un rendimiento de vanguardia para tareas complejas, superando a muchos otros modelos disponibles. Requiere hardware significativamente más potente.",
+      "tags": ["chat", "general", "research"],
+      "download_url": ""
+    },
+    {
+      "name": "CodeGemma",
+      "size": "5.0 GB",
+      "parameters": "7B",
+      "quantization": "Q4_0",
+      "context_length": "8192",
+      "description": "Modelo especializado en la generación y completado de código.",
+      "details": "CodeGemma, desarrollado por Google, está optimizado para tareas de programación. Soporta múltiples lenguajes como Python, JavaScript, Java, C++, etc. Es ideal para desarrolladores que buscan asistencia en la escritura de código, depuración y aprendizaje.",
+      "tags": ["code", "development"],
+      "download_url": ""
+    },
+    {
+      "name": "LLaVA",
+      "size": "4.5 GB",
+      "parameters": "7B",
+      "quantization": "Q4_0",
+      "context_length": "4096",
+      "description": "Asistente multimodal de lenguaje y visión.",
+      "details": "LLaVA (Large Language and Vision Assistant) puede entender tanto texto como imágenes. Permite realizar conversaciones sobre imágenes, describir lo que contienen, y responder preguntas visuales. Es perfecto para aplicaciones que requieren análisis de contenido visual.",
+      "tags": ["vision", "multimodal", "chat"],
+      "download_url": ""
+    },
+    {
+      "name": "Gemma",
+      "size": "5.0 GB",
+      "parameters": "7B",
+      "quantization": "Q4_0",
+      "context_length": "8192",
+      "description": "Familia de modelos abiertos y ligeros de Google.",
+      "details": "Gemma es una familia de modelos de Google construidos a partir de la misma investigación que los modelos Gemini. La versión 7B es un modelo de alto rendimiento, ideal para una variedad de tareas de texto, incluyendo respuesta a preguntas y resúmenes.",
+      "tags": ["chat", "general"],
+      "download_url": ""
+    },
+    {
+      "name": "Mistral",
+      "size": "4.1 GB",
+      "parameters": "7B",
+      "quantization": "Q4_0",
+      "context_length": "8192",
+      "description": "Modelo de lenguaje de alto rendimiento con capacidad de tool-use.",
+      "details": "El modelo 7B de Mistral AI es conocido por su gran rendimiento y eficiencia. Las versiones recientes también incluyen una sólida capacidad para el uso de herramientas (function calling), lo que lo hace versátil para tareas de automatización.",
+      "tags": ["chat", "general", "tool-use"],
+      "download_url": ""
+    },
+    {
+      "name": "Phi-3 Mini",
+      "size": "2.3 GB",
+      "parameters": "3.8B",
+      "quantization": "Q4_0",
+      "context_length": "4096",
+      "description": "Modelo de lenguaje pequeño y potente de Microsoft.",
+      "details": "Phi-3 Mini es un 'Small Language Model' (SLM) que ofrece un rendimiento sorprendente para su tamaño. Es capaz de ejecutarse en dispositivos con recursos limitados, incluyendo móviles, sin sacrificar la calidad en tareas de razonamiento y lenguaje.",
+      "tags": ["chat", "general", "lightweight"],
+      "download_url": ""
+    },
+    {
+      "name": "Command R+",
+      "size": "60 GB",
+      "parameters": "104B",
+      "quantization": "Q4_0",
+      "context_length": "128k",
+      "description": "Modelo a escala empresarial de Cohere para RAG y herramientas.",
+      "details": "Command R+ es un modelo de Cohere optimizado para casos de uso empresariales, destacando en 'Retrieval Augmented Generation' (RAG) y el uso de herramientas. Su gran ventana de contexto lo hace ideal para procesar y analizar documentos extensos.",
+      "tags": ["chat", "RAG", "tool-use", "enterprise"],
+      "download_url": ""
+    }
+  ]
+}

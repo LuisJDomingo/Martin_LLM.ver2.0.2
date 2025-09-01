@@ -1,18 +1,22 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*- 
 # ui/model_manager_widget.py
 import re
 import os
 import subprocess
 import sys
 import requests
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar,
-                             QListWidget, QPushButton, QMessageBox, QFrame, QWidget,
-                             QListWidgetItem, QMenu, QApplication)
+import json
+from PyQt6.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar,
+    QListWidget, QPushButton, QMessageBox, QFrame, QWidget,
+    QListWidgetItem, QMenu, QApplication
+)
 from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QObject, QThread
 from PyQt6.QtGui import QFont, QAction, QColor
 
 # Importaciones absolutas
 from app.model_selection import get_local_ollama_models_subprocess, get_online_ollama_models
+from ui.custom_widgets import FramelessWindowMixin, CustomTitleBar
 from app.ollama_manager import OllamaManager
 
 class ModelLoaderWorker(QObject):
@@ -69,51 +73,77 @@ class InstallWorker(QObject):
         print("[ui/model_manager_widget.py] -> InstallWorker.__init__")
         super().__init__()
         self.model_name = model_name
+        self.ollama_manager = OllamaManager()
+
+    def progress_handler(self, data):
+        """Procesa los datos del stream de Ollama y emite señales de progreso."""
+        status = data.get("status", "")
+        
+        # Si el stream reporta progreso de descarga
+        if "total" in data and "completed" in data:
+            total = data["total"]
+            completed = data["completed"]
+            if total > 0:
+                percentage = int(completed / total * 100)
+                
+                # Formatear el tamaño para que sea legible por el usuario
+                completed_gb = completed / (1024**3)
+                total_gb = total / (1024**3)
+                status_text = f"{completed_gb:.2f} GB / {total_gb:.2f} GB"
+                
+                self.progress_updated.emit(percentage, status_text)
+        else:
+            # Para otros estados como "pulling manifest", "verifying checksum", etc.
+            self.progress_updated.emit(-1, status)
 
     def run(self): # Ejecuta la instalación del modelo en un hilo separado.
         print(f"PASO 2.2: [ui/model_manager_widget.py] -> InstallWorker.run -> El hilo ha comenzado a ejecutar la tarea para '{self.model_name}'.")
         try:
-            print(f"PASO 2.3: [ui/model_manager_widget.py] -> InstallWorker.run -> Ejecutando 'ollama pull {self.model_name}' en un proceso separado.")
-            command = ["ollama", "pull", self.model_name]
-            process = subprocess.Popen(
-                command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, encoding='utf-8', bufsize=1,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-            )
-            print(f"PASO 2.4: [ui/model_manager_widget.py] -> InstallWorker.run -> Proceso 'ollama pull {self.model_name}' iniciado.")
+            # --- INICIO: Verificación y reinicio forzado de Ollama ---
+            def is_ollama_server_running():
+                try:
+                    requests.get("http://localhost:11434/api/tags", timeout=2)
+                    return True
+                except requests.RequestException:
+                    return False
 
-            full_output = []
+            if not is_ollama_server_running():
+                print("[InstallWorker] El servidor de Ollama no responde. Intentando reiniciarlo forzadamente...")
+                try:
+                    if sys.platform == "win32":
+                        subprocess.run(
+                            ["taskkill", "/F", "/IM", "ollama.exe"],
+                            check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                        )
+                        print("[InstallWorker] Se envió la señal de terminación a los procesos ollama.exe existentes.")
+                        
+                        subprocess.Popen(
+                            ["ollama", "serve"],
+                            creationflags=subprocess.CREATE_NO_WINDOW
+                        )
+                        
+                        import time
+                        print("[InstallWorker] Esperando a que el servidor de Ollama se inicie...")
+                        time.sleep(5)
 
-            for line in iter(process.stdout.readline, ''):
-                line = line.strip()
-                # print(f"[ui/model_manager_widget.py] -> InstallWorker.run -> Línea recibida: {line.strip()}") # Descomentar para depuración muy detallada
-                full_output.append(line)
-                progress_match = re.search(r'(\d+)%', line)
-                if progress_match:
-                    percentage = int(progress_match.group(1))
-                    size_match = re.search(r'(\d+\.?\d*\s[KMGT]?B\s*/\s*\d+\.?\d*\s[KMGT]?B)', line)
-                    status_text = size_match.group(1) if size_match else "Descargando..."
-                    # print(f"[ui/model_manager_widget.py] -> InstallWorker.run -> Emitiendo progreso: {percentage}%, {status_text}")
-                    self.progress_updated.emit(percentage, status_text)
-                elif "pulling" in line or "verifying" in line or "writing" in line or "success" in line.lower():
-                    # print(f"[ui/model_manager_widget.py] -> InstallWorker.run -> Emitiendo estado: {line}")
-                    self.progress_updated.emit(-1, line)
+                except FileNotFoundError:
+                    print("[InstallWorker] Comando 'taskkill' no encontrado. No se puede forzar la detención de Ollama.")
+                except Exception as e:
+                    print(f"[InstallWorker] Ocurrió un error al intentar reiniciar Ollama: {e}")
+            # --- FIN: Verificación y reinicio forzado de Ollama ---
+
+            print(f"[InstallWorker] Usando API para descargar '{self.model_name}'.")
+            self.ollama_manager.pull_model(self.model_name, self.progress_handler)
             
-            process.stdout.close()
-            return_code = process.wait()
-            print(f"PASO 7: [ui/model_manager_widget.py] -> InstallWorker.run -> Proceso finalizado con código: {return_code}")
+            print(f"PASO 8: [ui/model_manager_widget.py] -> InstallWorker.run -> Emitiendo señal 'finished' para {self.model_name}")
+            self.finished.emit(self.model_name)
 
-            if return_code == 0:
-                print(f"PASO 8: [ui/model_manager_widget.py] -> InstallWorker.run -> Emitiendo señal 'finished' para {self.model_name}")
-                self.finished.emit(self.model_name)
-            else:
-                error_details = f"El proceso 'ollama pull' falló con código {return_code}.\n\nÚltimas líneas:\n{''.join(full_output[-5:])}"
-                print(f"PASO 8 (ERROR): [ui/model_manager_widget.py] -> InstallWorker.run -> Emitiendo señal 'error': {error_details}")
-                self.error.emit(error_details, self.model_name)
         except Exception as e:
+            # Captura cualquier excepción de pull_model (incluyendo errores de Ollama)
+            print(f"PASO 8 (ERROR): [ui/model_manager_widget.py] -> InstallWorker.run -> Emitiendo señal 'error': {e}")
             self.error.emit(str(e), self.model_name)
 
-class ModelManagerWidget(QDialog):
+class ModelManagerWidget(QDialog, FramelessWindowMixin):
     """Ventana de gestión de modelos en PyQt6"""
     
     # Señales
@@ -121,14 +151,11 @@ class ModelManagerWidget(QDialog):
     
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._init_frameless_mixin()
         print("[DEBUG] Creando ModelManagerWidget")
         
-        self.setWindowTitle("Gestión de Modelos")
-        self.setMinimumSize(500, 400)
+        self.setMinimumSize(500, 440)
               
-        # Variables para arrastrar ventana
-        self.drag_position = QPoint()
-        
         self.selected_model_name = None
         self.install_threads = {}
         self.install_workers = {} # Para mantener una referencia a los workers
@@ -144,6 +171,9 @@ class ModelManagerWidget(QDialog):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
+
+        self.title_bar = CustomTitleBar(self, "Gestión de Modelos", show_max_min=False)
+        main_layout.addWidget(self.title_bar)
                 
         # Frame principal
         main_frame = QFrame()
@@ -231,9 +261,9 @@ class ModelManagerWidget(QDialog):
             is_alias = ':' not in model_name
             if is_alias and model_name in installed_ollama_base_names:
                 continue
-            
-            self.add_model_widget(model_name, is_local=False, size="Remoto")
-        
+
+            self.add_model_widget(model_name, is_local=False) #size="Remoto"
+
         if self.model_list.count() == 0 and not error_string:
             no_models_item = QListWidgetItem("No se encontraron modelos.")
             no_models_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -379,6 +409,7 @@ class ModelManagerWidget(QDialog):
                 uninstall_button.clicked.connect(lambda checked=False, mn=model_identifier: self.uninstall_model_action(mn))
                 layout.addWidget(uninstall_button, 0, Qt.AlignmentFlag.AlignVCenter)
 
+
             # --- Botón Usar ---
             use_button = QPushButton("Usar")
             use_button.setFixedWidth(90)
@@ -391,6 +422,7 @@ class ModelManagerWidget(QDialog):
             # --- Botón Instalar ---
             install_button = QPushButton("Instalar")
             install_button.setFixedWidth(90)
+            install_button.setObjectName("installModelButton")
             install_button.setMinimumHeight(30)
             self.install_buttons.append(install_button)
 
@@ -398,7 +430,7 @@ class ModelManagerWidget(QDialog):
             progress_bar = QProgressBar()
             progress_bar.setObjectName("downloadProgressBar")
             progress_bar.setFixedWidth(190)
-            progress_bar.setMinimumHeight(30)
+            progress_bar.setMinimumHeight(40)
             progress_bar.setTextVisible(True)
             progress_bar.setFormat("%p%")
             progress_bar.setVisible(False)
@@ -456,4 +488,4 @@ class ModelManagerWidget(QDialog):
             else:
                 event.ignore()  # Ignorar el cierre, la ventana permanece abierta.
         else:
-            event.accept() # No hay descargas, cerrar normalmente.
+            event.accept() # No hay descargas, cerrar normally.

@@ -1,44 +1,8 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*- 
 # app/agent.py
 import json
 from app.llm_providers import BaseLLMProvider
-from app.tools import tool_registry
-
-AGENT_SYSTEM_PROMPT_TEMPLATE = """
-# Core Persona
-{custom_prompt}
-
-# Your Mission
-You are an autonomous agent. Your goal is to achieve the user's objective by using the tools available to you.
-You must respond in a specific JSON format. On each step, you must think about your next action and then produce a JSON object with the action to take.
-
-# Available Tools
-You have the following tools at your disposal:
-{tools}
-
-Your response MUST be a JSON object with two keys: 'thought' and 'action'.
-The 'action' key must contain a dictionary with 'tool_name' and 'args'.
-The 'tool_name' must be one of the available tools or 'finish' if you have completed the objective.
-The 'args' for the 'finish' tool should be your final answer to the user.
-
-Example:
-{{
-    "thought": "I need to find out what's on the main page of Wikipedia. I will use the web_search tool.",
-    "action": {{
-        "tool_name": "web_search",
-        "args": "https://www.wikipedia.org"
-    }}
-}}
-
-If you are finished, respond like this:
-{{
-    "thought": "I have found the answer and will now provide it to the user.",
-    "action": {{
-        "tool_name": "finish",
-        "args": "The main page of Wikipedia contains a lot of information about current events."
-    }}
-}}
-"""
+from app.tools import ToolRegistry
 
 class Agent:
     """
@@ -49,16 +13,89 @@ class Agent:
         if not isinstance(provider, BaseLLMProvider):
             raise TypeError("El proveedor debe ser una instancia de BaseLLMProvider.")
         self.provider = provider
+        # Crear una instancia del registro de herramientas específica para este agente,
+        # pasándole el proveedor para que la ToolGeneratorTool pueda usarlo.
+        self.tool_registry = ToolRegistry(provider=self.provider)
         self.history = []
         self.report_step_callback = None # Para reportar progreso a la UI
         
         if not custom_prompt:
             custom_prompt = "You are a helpful and efficient autonomous agent."
-            
-        self.system_prompt = AGENT_SYSTEM_PROMPT_TEMPLATE.format(
-            custom_prompt=custom_prompt,
-            tools=tool_registry.get_tool_descriptions()
-        )
+        
+        # 🔧 Construir el system_prompt como f-string
+        self.system_prompt = f"""
+# Core Persona
+{custom_prompt}
+
+# Your Mission
+You are an autonomous agent. Your goal is to achieve the user's objective by using the tools available to you.
+You must respond in a specific JSON format. On each step, you must think about your next action and then produce a JSON object with the action to take.
+
+# Constraints
+- You MUST ONLY respond with a single valid JSON object. Do not add any text before or after the JSON object.
+- The 'action' field MUST be a dictionary containing 'tool_name' and 'args'.
+- The 'tool_name' MUST be one of the available tools or 'finish'.
+- The 'args' for the 'calculator' tool MUST be ONLY the mathematical expression to evaluate (e.g., '2+2', '10 * (4/2)'). It MUST NOT contain the answer or any other text.
+- The 'args' for the 'finish' tool MUST be the final answer to the user's objective and it MUST be directly related to the user's request. Do not make up unrelated information.
+
+# Learning From Observations
+After each action, you will receive an "Observation" message. This message contains the result or an error from the tool you used.
+You MUST pay close attention to the Observation. If a tool returns an error, analyze the error message and correct your next action. Do not repeat the same failed action.
+
+# Available Tools
+You have the following tools at your disposal:
+{self.tool_registry.get_tool_descriptions()}
+
+Your response MUST be a JSON object with two keys: 'thought' and 'action'.
+The 'action' key must contain a dictionary with 'tool_name' and 'args'.
+The 'tool_name' must be one of the available tools or 'finish' if you have completed the objective.
+The 'args' for the 'finish' tool should be your final answer to the user.
+
+**Example 1 (Using Calculator):**
+{{
+    "thought": "The user is asking for a mathematical calculation. I should use the calculator tool.",
+    "action": {{
+        "tool_name": "calculator",
+        "args": "3 + 4"
+    }}
+}}
+
+**Example 1b (Incorrect - DO NOT DO THIS):**
+{{
+    "thought": "The user wants to know what 3+4 is. I will calculate it and put the whole equation in the arguments.",
+    "action": {{
+        "tool_name": "calculator",
+        "args": "3 + 4 = 7"
+    }}
+}}
+
+**Example 2 (Using Web Search):**
+{{
+    "thought": "I need to find information on a webpage. I will use the web_search tool.",
+    "action": {{
+        "tool_name": "web_search",
+        "args": "https://www.wikipedia.org"
+    }}
+}}
+
+**Example 3 (Direct Answer / Finishing Task):**
+{{
+    "thought": "The user's question can be answered directly without using any tools. I will provide the answer.",
+    "action": {{
+        "tool_name": "finish",
+        "args": "La capital de Francia es París."
+    }}
+}}
+
+If you are finished, respond like this:
+{{
+    "thought": "I have calculated the result and will now provide it to the user.",
+    "action": {{
+        "tool_name": "finish",
+        "args": "The result of 2+2 is 4."
+    }}
+}}
+"""
 
     def _parse_llm_response(self, response_text: str) -> dict | None:
         """Intenta parsear la respuesta del LLM como un objeto JSON.
@@ -105,6 +142,12 @@ class Agent:
 
             thought = action_data.get("thought", "(sin pensamiento)")
             action = action_data.get("action", {})
+            if not isinstance(action, dict):
+                observation = f"Error: The 'action' field in your JSON response must be a dictionary, but you provided a {type(action).__name__}. Please correct the format and ensure 'action' contains 'tool_name' and 'args'."
+                print(f"Observation: {observation}")
+                self.history.append({"role": "system", "content": f"Observation: {observation}"})
+                continue
+
             tool_name = action.get("tool_name")
             args = action.get("args", "")
             
@@ -115,30 +158,35 @@ class Agent:
             print(f"Thought: {thought}")
 
             # 2. ACTUAR: ejecutar la herramienta o terminar
+            observation = ""
             if not tool_name:
                 observation = "Error: El modelo no especificó un 'tool_name' en su acción."
             elif tool_name == "finish":
-                print(f"--- AGENT FINISHED ---")
-                final_answer = args
-                # Asegurarse de que la respuesta final siempre sea un string
-                if not isinstance(final_answer, str):
-                    final_answer = str(final_answer)
-                print(f"Final Answer: {final_answer}")
-                return final_answer
+                if not args:
+                    observation = "Error: You used the 'finish' tool without providing a final answer in the 'args'. Please provide the answer in the 'args' field."
+                else:
+                    print(f"--- AGENT FINISHED ---")
+                    final_answer = args
+                    # Asegurarse de que la respuesta final siempre sea un string
+                    if not isinstance(final_answer, str):
+                        final_answer = str(final_answer)
+                    print(f"Final Answer: {final_answer}")
+                    return final_answer
+            else: # It's a tool call
+                tool = self.tool_registry.get_tool(tool_name)
+                if not tool:
+                    observation = f"Error: Herramienta desconocida: '{tool_name}'. Las herramientas disponibles son: {self.tool_registry.get_tool_descriptions()}"
+                else:
+                    print(f"Action: Executing tool '{tool_name}' with args: '{args}'")
+                    # 3. OBSERVAR: obtener el resultado de la herramienta
+                    try:
+                        observation = tool.run(args)
+                    except Exception as e:
+                        observation = f"Error executing tool {tool_name}: {e}"
 
-            tool = tool_registry.get_tool(tool_name)
-            if not tool:
-                observation = f"Error: Herramienta desconocida: '{tool_name}'. Las herramientas disponibles son: {tool_registry.get_tool_descriptions()}"
-            else:
-                print(f"Action: Executing tool '{tool_name}' with args: '{args}'")
-                # 3. OBSERVAR: obtener el resultado de la herramienta
-                try:
-                    observation = tool.run(args)
-                except Exception as e:
-                    observation = f"Error executing tool {tool_name}: {e}"
-            
-            print(f"Observation: {observation[:200]}...") # Imprimir los primeros 200 caracteres de la observación
-            self.history.append({"role": "system", "content": f"Observation: {observation}"})
+            if observation: # If there was an error or a non-terminating action
+                print(f"Observation: {observation[:200]}...")
+                self.history.append({"role": "system", "content": f"Observation: {observation}"})
 
         return "El agente no pudo completar la tarea en el número máximo de pasos."
 

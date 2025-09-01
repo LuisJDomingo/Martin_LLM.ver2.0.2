@@ -51,3 +51,9 @@ models/model.gguf
 build/
 dist/
 *.spec
+
+# --- Datos de Aplicación y Binarios ---
+# Ignorar la carpeta de datos (ej. bases de datos locales)
+data/
+# Ignorar instaladores y otros binarios grandes
+installers/

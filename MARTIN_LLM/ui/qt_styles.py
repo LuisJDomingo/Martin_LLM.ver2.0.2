@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# ui/qt_styles.py
+# ui/qt_styles.py (Versión Mejorada)
 """
-Sistema de estilos PyQt6 con tema sci-fi
+Sistema de estilos PyQt6 con tema sci-fi mejorado para una apariencia más limpia.
 """
 
 from PyQt6.QtWidgets import QApplication
@@ -9,12 +9,12 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QPalette, QColor
 
 def get_futuristic_stylesheet():
-    """Retorna el stylesheet completo para el tema futurista suave"""
+    """Retorna el stylesheet completo para el tema futurista mejorado."""
     return """
     /* Estilo base para toda la aplicación */
     QWidget {
-        background-color: #1a1d23;
-        color: #e1e5e9;
+        background-color: #1a1d23; /* Fondo principal oscuro */
+        color: #e1e5e9; /* Texto principal claro */
         font-family: 'Segoe UI', 'Arial', sans-serif;
         font-size: 10pt;
         border: none;
@@ -22,143 +22,169 @@ def get_futuristic_stylesheet():
     
     /* Ventana principal */
     QMainWindow {
-        background-color: #1a1d23;
-        color: #e1e5e9;
+        background-color: #1a1d23; /* Fondo para el área fuera del mainFrame */
+        border: 1px solid #4a90e2; /* Borde azul para la ventana activa */
     }
     
     /* Frames y contenedores */
     QFrame {
-        background-color: #242831;
-        border: 1px solid #3d4650;
+        background-color: transparent; /* Fondo transparente por defecto */
+        border: none;
         border-radius: 8px;
         margin: 0px;
-        padding: 5px;
+        padding: 0px;
     }
 
-    /* Quitar el fondo del panel de parámetros para un look más integrado */
-    QFrame#llmParametersWidget {
-        background-color: transparent;
+    /* Frame principal que contiene toda la UI debajo de la barra de título */
+    QFrame#mainFrame {
+        background-color: #1a1d23;
+        border: none;
+        border-radius: 0px;
+    }
+
+    /* Paneles laterales izquierdo y derecho */
+    QWidget#leftSidePanel {
+        background-color: #1a1d23; /* Mismo fondo que el principal */
+        border-right: 1px solid #3d4650; /* Borde para separar del centro */
+    }
+
+    QWidget#rightSidePanel {
+        background-color: #1a1d23; /* Mismo fondo que el principal */
+        border-left: 1px solid #3d4650; /* Borde para separar del centro */
+    }
+
+    /* Área de scroll del historial de chat */
+    QScrollArea#historyScrollArea {
+        background-color: #1a1d23; /* Fondo oscuro para el área de chat */
         border: none;
     }
 
-    /* Quitar el borde del panel de login para un look más integrado */
-    QFrame#loginContainerFrame {
-        border: none;
-    }
-
-    /* Quitar el borde del panel izquierdo para un look más integrado */
-    QFrame#leftPanelFrame {
-        border: none;
+    /* Contenido dentro del área de scroll */
+    QWidget#history_content_widget {
+        background-color: #1a1d23;
     }
 
     /* Estilo para el encabezado de los paneles plegables */
     QWidget#collapsibleHeader {
         background-color: transparent;
-        border: none;
+        border-bottom: 1px solid #3d4650;
+        padding: 5px;
     }
     
-    QFrame#topbar {
-        background-color: #2c3038;
-        border: none;
-        border-bottom: 1px solid #4a5568;
-        margin: 0px;
-        padding: 0px;
+    /* Barra de título personalizada */
+    QFrame#customTitleBar {
+        background-color: #242831;
     }
-    
-    /* Botones */
+
+    /* Botones de control de ventana (Minimizar, Maximizar, Toggle Panels) */
+    QPushButton#windowControlButton {
+        background-color: transparent;
+        border: none;
+        border-radius: 4px;
+    }
+    QPushButton#windowControlButton:hover { background-color: rgba(255, 255, 255, 0.1); }
+    QPushButton#windowControlButton:pressed { background-color: rgba(255, 255, 255, 0.15); }
+
+    /* ================================================================== */
+    /* Botones - Estilo Minimalista                                       */
+    /* ================================================================== */
     QPushButton {
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4a90e2, stop:1 #357abd);
-        color: #ffffff;
-        border: 1px solid #2c5282;
-        border-radius: 6px;
-        padding: 6px 10px;
+        background-color: transparent;
+        color: #e1e5e9;
+        border: 1px solid #4a5568; /* Borde sutil para botones secundarios */
+        border-radius: 8px; /* Esquinas redondeadas para botones estándar */
+        padding: 6px 12px;
         font-weight: 600;
-        font-size: 8pt;
-        min-width: 60px;
-        min-height: 20px;
-        text-align: center;
+        font-size: 9pt;
     }
     
     QPushButton:hover {
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #5ba0f2, stop:1 #4682cd);
-        border-color: #3182ce;
-    }
-    
-    QPushButton:pressed {
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #3182ce, stop:1 #2c5282);
-        border-color: #2a4365;
-    }
-    
-    QPushButton:disabled {
-        background-color: #4a5568;
-        color: #9ca3af;
+        background-color: #2d3748; /* Fondo oscuro sutil al pasar el ratón */
         border-color: #6b7280;
     }
     
-    /* Botones especiales */
-    QPushButton#closeButton {
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f56565, stop:1 #e53e3e);
-        color: #ffffff;
-        border-color: #c53030;
-        max-width: 30px;
-        max-height: 30px;
-        font-size: 12pt;
-        font-weight: bold;
+    QPushButton:pressed {
+        background-color: #1a1d23; /* Ligeramente más oscuro al presionar */
+        border-color: #4a5568;
     }
     
-    QPushButton#closeButton:hover {
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #fc8181, stop:1 #f56565);
-        border-color: #e53e3e;
-    }
-    
-    QPushButton#minimizeButton {
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #68d391, stop:1 #48bb78);
-        color: #ffffff;
-        border-color: #38a169;
-        max-width: 30px;
-        max-height: 30px;
-        font-size: 12pt;
-        font-weight: bold;
-    }
-    
-    QPushButton#minimizeButton:hover {
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #9ae6b4, stop:1 #68d391);
-        border-color: #48bb78;
-    }
-    
-    /* Botones de gestión de modelos */
-    QPushButton#useModelButton {
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #68d391, stop:1 #48bb78);
-        border-color: #38a169;
-    }
-    QPushButton#useModelButton:hover {
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #9ae6b4, stop:1 #68d391);
-        border-color: #48bb78;
-    }
-    QPushButton#useModelButton:pressed {
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #48bb78, stop:1 #38a169);
-        border-color: #2f855a;
-    }
-
-    QPushButton#uninstallModelButton {
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f56565, stop:1 #e53e3e);
-        border-color: #c53030;
-    }
-    QPushButton#uninstallModelButton:hover {
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #fc8181, stop:1 #f56565);
-        border-color: #e53e3e;
-    }
-    QPushButton#uninstallModelButton:pressed {
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #e53e3e, stop:1 #c53030);
-        border-color: #9b2c2c;
-    }
-
-    /* Estilo para el icono del panel plegable para asegurar que no tenga borde */
-    QLabel#collapsibleIcon {
-        border: none;
+    QPushButton:disabled {
         background-color: transparent;
+        color: #6b7280;
+        border-color: #374151;
     }
 
+    /* Botón de Enviar específico */
+    QPushButton#sendButton {
+        background-color: #ffffff; /* Fondo blanco */
+        border: 1px solid #d1d5db; /* Borde gris claro */
+        border-radius: 20px; /* Botón de enviar más redondeado */
+        color: #1a1d23; /* El color del texto no afecta al icono, pero es buena práctica */
+    }
+    QPushButton#sendButton:hover {
+        background-color: #f3f4f6; /* Gris muy claro */
+        border-color: #9ca3af;
+    }
+    QPushButton#sendButton:pressed {
+        background-color: #e5e7eb; /* Gris un poco más oscuro */
+        border-color: #6b7280;
+    }
+
+    /* Botones de acción principal (Instalar, Usar, etc.) */
+    QPushButton#useModelButton, QPushButton#installModelButton, QPushButton#primaryButton {
+        background-color: #357abd; /* Azul sólido */
+        border: 1px solid #2c5282;
+        color: #ffffff;
+    }
+    QPushButton#useModelButton:hover, QPushButton#installModelButton:hover, QPushButton#primaryButton:hover {
+        background-color: #4a90e2; /* Azul más brillante */
+        border-color: #3182ce;
+    }
+    QPushButton#useModelButton:pressed, QPushButton#installModelButton:pressed, QPushButton#primaryButton:pressed {
+        background-color: #2c5282; /* Azul más oscuro */
+    }
+
+    /* Botones de solo icono (Adjuntar, Nueva Conv, etc.) */
+    QPushButton#iconButton {
+        background-color: transparent;
+        border: 1px solid #a0aec0; /* Borde sutil gris claro */
+        /* Un radio grande (mitad del tamaño del botón más grande) asegura que
+           todos los botones cuadrados se vuelvan circulares. */
+        border-radius: 18px; /* Mitad de 35-36px para asegurar círculo */
+        padding: 8px;
+    }
+    QPushButton#iconButton:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        border-color: white;
+    }
+    QPushButton#iconButton:pressed {
+        background-color: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Botón de peligro (Desinstalar, Eliminar) */
+    QPushButton#uninstallModelButton, QPushButton#deleteButton {
+        background-color: #c53030;
+        border-color: #9b2c2c;
+        color: white;
+    }
+    QPushButton#uninstallModelButton:hover, QPushButton#deleteButton:hover {
+        background-color: #e53e3e;
+        border-color: #c53030;
+    }
+    QPushButton#uninstallModelButton:pressed, QPushButton#deleteButton:pressed {
+        background-color: #9b2c2c;
+        border-color: #742a2a;
+    }
+
+    /* Botón de cerrar de la ventana */
+    QPushButton#closeButton {
+        background-color: transparent;
+        border: none;
+        border-radius: 4px;
+    }
+    QPushButton#closeButton:hover { background-color: #c53030; }
+    QPushButton#closeButton:pressed { background-color: #9b2c2c; }
+    
     /* Labels */
     QLabel {
         color: #e1e5e9;
@@ -181,21 +207,6 @@ def get_futuristic_stylesheet():
         margin-bottom: 5px;
     }
 
-    QLabel#systemLabel {
-        color: #fbb6ce;
-        font-weight: bold;
-    }
-    
-    QLabel#userLabel {
-        color: #90cdf4;
-        font-weight: bold;
-    }
-    
-    QLabel#aiLabel {
-        color: #9ae6b4;
-        font-weight: bold;
-    }
-    
     /* Campos de texto */
     QLineEdit {
         background-color: #2d3748;
@@ -213,161 +224,67 @@ def get_futuristic_stylesheet():
         background-color: #374151;
     }
     
-    QTextEdit {
-        background-color: #1a1d23;
+    QTextEdit#inputText {
+        background-color: #2d3748;
         color: #e1e5e9;
         border: 2px solid #4a5568;
-        border-radius: 8px;
-        padding: 12px;
+        border-radius: 20px; /* Más redondeado */
+        padding: 8px 15px; /* Menos alto y más padding horizontal */
         font-family: 'Consolas', 'Courier New', monospace;
         font-size: 11pt;
         selection-background-color: #4a90e2;
         selection-color: #ffffff;
         line-height: 1.4;
     }
-    
-    QTextEdit#historyText {
+
+    /* ComboBoxes con estilo unificado (para selectores de modo y modelo) */
+    QComboBox#modeSelector, QComboBox#installedModelsCombo {
         background-color: #1a1d23;
-        color: #e1e5e9;
-        border: 2px solid #4a5568;
-        border-radius: 8px;
-    }
-    
-    QTextEdit#inputText {
-        background-color: #2d3748;
-        color: #e1e5e9;
-        border: 2px solid #4a5568;
-        border-radius: 8px;
-        max-height: 120px;
-    }
-    
-    /* Checkboxes */
-    QCheckBox {
-        color: #e1e5e9;
-        spacing: 8px;
-        font-size: 10pt;
-    }
-    
-    QCheckBox::indicator {
-        width: 18px;
-        height: 18px;
-        border: 2px solid #4a5568;
-        border-radius: 4px;
-        background-color: #2d3748;
-    }
-    
-    QCheckBox::indicator:checked {
-        background-color: #4a90e2;
-        border-color: #4a90e2;
-        image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEzLjUgNEw2IDExLjUgMi41IDgiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+);
-    }
-    
-    QCheckBox::indicator:hover {
-        border-color: #4a90e2;
-        background-color: #374151;
-    }
-    
-    /* Radio Buttons */
-    QRadioButton {
-        background-color: transparent;
-        color: #e1e5e9;
-        spacing: 8px;
-        font-size: 10pt;
-    }
-
-    QRadioButton:checked {
-        color: #90cdf4; /* Un azul más brillante para el texto */
-        font-weight: bold;
-    }
-
-    QRadioButton::indicator {
-        width: 18px;
-        height: 18px;
-        border: 2px solid #4a5568;
-        border-radius: 9px; /* Círculo perfecto */
-        background-color: #2d3748;
-    }
-
-    QRadioButton::indicator:hover {
-        border-color: #4a90e2;
-    }
-
-    QRadioButton::indicator:checked {
-        background-color: #4a90e2;
-        border-color: #4a90e2;
-        image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHZpZXdCb3g9IjAgMCAxMiAxMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkuNzUgMy43NUw1LjI1IDguMjVMMi4yNSA1LjI1IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+Cjwvc3ZnPg==);
-    }
-    
-    /* ListWidget */
-    QListWidget {
-        background-color: #242831;
-        color: #e1e5e9;
-        border: 2px solid #4a5568;
-        border-radius: 8px;
-        padding: 8px;
-        font-size: 10pt;
-        alternate-background-color: #2d3748;
-    }
-    
-    QListWidget::item {
-        padding: 8px 12px;
-        border-bottom: 1px solid #374151;
-        border-radius: 4px;
-        margin-bottom: 2px;
-    }
-    
-    QListWidget::item:selected {
-        background-color: #4a90e2;
-        color: #ffffff;
-    }
-    
-    QListWidget::item:hover {
-        background-color: #374151;
-        color: #e1e5e9;
-    }
-    
-    QListWidget#recentConvsList {
+        color: #a0aec0;
         border: 1px solid #3d4650;
-        padding: 4px;
-        font-size: 9pt;
+        border-radius: 5px;
+        padding: 5px;
+        min-width: 120px;
     }
 
-    QListWidget#recentConvsList::item {
-        padding: 4px 6px;
-        border-bottom: 1px solid #2d3748;
-        margin-bottom: 1px;
-        border-radius: 2px;
+    /* Ajuste específico para el selector de modo para que sea más pequeño */
+    QComboBox#modeSelector {
+        min-width: 50px;
+        max-width: 50px;
+        /* Se anula el padding-left general de 5px y se establece uno
+           específico para centrar el icono visualmente. */
+        padding-left: 17px;
+        border: none; /* Eliminar el borde */
+        background-color: transparent; /* Hacer el fondo transparente */
     }
-
-    /* Hace que el fondo de la fila de conversación sea transparente */
-    QWidget#recentConvRow {
-        background: transparent;
+    QComboBox#modeSelector::drop-down, QComboBox#installedModelsCombo::drop-down {
         border: none;
     }
+    QComboBox#modeSelector QAbstractItemView, QComboBox#installedModelsCombo QAbstractItemView {
+        background-color: #1a1d23;
+        color: #a0aec0;
+        selection-background-color: #2d3748;
+    }
 
-    /* Estilo específico para la lista de modelos para evitar conflictos de padding */
-    QListWidget#modelList::item {
-        padding: 2px; /* Reducir padding para que el widget interno controle el espacio */
-        border: none;
-        border-bottom: 1px solid #374151;
-        margin: 0;
-        border-radius: 0;
+    /* Asegurar que el desplegable del selector de modo sea suficientemente ancho */
+    QComboBox#modeSelector QAbstractItemView {
+        min-width: 140px;
     }
     
     /* Scrollbars */
     QScrollBar:vertical {
-        background-color: #2d3748;
-        width: 12px;
+        background-color: #242831;
+        width: 10px;
         border: none;
-        border-radius: 6px;
+        border-radius: 5px;
         margin: 0px;
     }
     
     QScrollBar::handle:vertical {
         background-color: #4a5568;
-        border-radius: 6px;
+        border-radius: 5px;
         min-height: 20px;
-        margin: 2px;
+        margin: 1px;
     }
     
     QScrollBar::handle:vertical:hover {
@@ -382,18 +299,18 @@ def get_futuristic_stylesheet():
     }
     
     QScrollBar:horizontal {
-        background-color: #2d3748;
-        height: 12px;
+        background-color: #242831;
+        height: 10px;
         border: none;
-        border-radius: 6px;
+        border-radius: 5px;
         margin: 0px;
     }
     
     QScrollBar::handle:horizontal {
         background-color: #4a5568;
-        border-radius: 6px;
+        border-radius: 5px;
         min-width: 20px;
-        margin: 2px;
+        margin: 1px;
     }
     
     QScrollBar::handle:horizontal:hover {
@@ -407,200 +324,161 @@ def get_futuristic_stylesheet():
         width: 0px;
     }
     
-    /* ComboBox */
-    QComboBox {
-        background-color: #2d3748;
-        color: #e1e5e9;
-        border: 2px solid #4a5568;
-        border-radius: 6px;
-        padding: 8px 12px;
-        min-width: 150px;
-    }
-    
-    QComboBox:hover {
-        border-color: #4a90e2;
-        background-color: #374151;
-    }
-    
-    QComboBox::drop-down {
-        border: none;
-        width: 20px;
-    }
-    
-    QComboBox::down-arrow {
-        image: none;
-        border-left: 5px solid transparent;
-        border-right: 5px solid transparent;
-        border-top: 5px solid #e1e5e9;
-    }
-    
-    QComboBox QAbstractItemView {
-        background-color: #2d3748;
-        color: #e1e5e9;
-        border: 2px solid #4a5568;
-        border-radius: 6px;
-        selection-background-color: #4a90e2;
-        selection-color: #ffffff;
-    }
-    
-    /* Progress Bar */
-    QProgressBar {
-        background-color: #2d3748;
-        border: 2px solid #4a5568;
-        border-radius: 6px;
-        text-align: center;
-        color: #e1e5e9;
-        font-weight: bold;
-        height: 20px;
-    }
-    
-    QProgressBar::chunk {
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4a90e2, stop:1 #357abd);
-        border-radius: 4px;
-    }
-
-    QProgressBar#downloadProgressBar {
-        border: 2px solid #38a169;
-        background-color: #2d3748;
-        color: #e1e5e9;
-    }
-
-    QProgressBar#downloadProgressBar::chunk {
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #68d391, stop:1 #48bb78);
-        border-radius: 4px;
-    }
-    
-    /* Menu contextual */
-    QMenu {
-        background-color: #2d3748;
-        color: #e1e5e9;
-        border: 2px solid #4a5568;
-        border-radius: 8px;
-        padding: 4px;
-    }
-    
-    QMenu::item {
-        padding: 8px 16px;
-        border-radius: 4px;
-        margin: 2px;
-    }
-    
-    QMenu::item:selected {
-        background-color: #4a90e2;
-        color: #ffffff;
-    }
-    
-    QMenu::item:disabled {
-        color: #9ca3af;
-    }
-    
     /* Tooltips */
     QToolTip {
         background-color: #2d3748;
         color: #e1e5e9;
-        border: 2px solid #4a5568;
-        border-radius: 6px;
-        padding: 8px;
-        font-size: 9pt;
-    }
-    
-    /* Separadores */
-    QFrame[frameShape="4"] {
-        color: #4a5568;
-        background-color: #4a5568;
-        height: 1px;
-        border: none;
-    }
-    
-    QFrame[frameShape="5"] {
-        color: #4a5568;
-        background-color: #4a5568;
-        width: 1px;
-        border: none;
-    }
-        /* Sliders para parámetros del modelo */
-    QSlider::groove:horizontal {
-        border: 1px solid #3d4650;
-        height: 6px; /* Altura del surco */
-        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4a90e2, stop:1 #f56565); /* Degradado de Azul a Rojo */
-        margin: 2px 0;
-        border-radius: 3px;
-    }
-
-    QSlider::handle:horizontal {
-        background-color: #e1e5e9; /* Color claro para el manejador */
-        border: 1px solid #a0aec0;
-        width: 16px;
-        height: 16px;
-        margin: -6px 0; /* Centrar verticalmente sobre el surco */
-        border-radius: 8px; /* Hacerlo circular */
-    }
-
-    QSlider::handle:horizontal:hover {
-        background-color: #ffffff;
-        border-color: #ffffff;
+        border: 1px solid #4a5568;
+        padding: 5px;
+        border-radius: 4px;
     }
     """
 
 def apply_futuristic_theme(app: QApplication):
-    """Aplica el tema futurista suave a la aplicación"""
-    # Configurar la fuente por defecto
-    font = QFont("Segoe UI", 10)
-    if not font.exactMatch():
-        font = QFont("Arial", 10)
-    app.setFont(font)
+    """Aplica el tema futurista a la aplicación."""
+    stylesheet = get_futuristic_stylesheet()
+    app.setStyleSheet(stylesheet)
     
-    # Aplicar el stylesheet
-    app.setStyleSheet(get_futuristic_stylesheet())
-    
-    # Configurar la paleta de colores
-    palette = QPalette()
-    palette.setColor(QPalette.ColorRole.Window, QColor("#1a1d23"))
-    palette.setColor(QPalette.ColorRole.WindowText, QColor("#e1e5e9"))
-    palette.setColor(QPalette.ColorRole.Base, QColor("#242831"))
-    palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#2d3748"))
-    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#2d3748"))
-    palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#e1e5e9"))
-    palette.setColor(QPalette.ColorRole.Text, QColor("#e1e5e9"))
-    palette.setColor(QPalette.ColorRole.Button, QColor("#4a90e2"))
-    palette.setColor(QPalette.ColorRole.ButtonText, QColor("#ffffff"))
-    palette.setColor(QPalette.ColorRole.BrightText, QColor("#90cdf4"))
-    palette.setColor(QPalette.ColorRole.Link, QColor("#4a90e2"))
-    palette.setColor(QPalette.ColorRole.Highlight, QColor("#4a90e2"))
-    palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
-    
-    app.setPalette(palette)
-    
-    print("[DEBUG] Tema futurista suave aplicado exitosamente")
+ADDITIONAL_LOGIN_STYLES = """
+/* Estilos específicos para el diálogo de recuperación de contraseña */
+QDialog {
+    background-color: #1a1d23;
+    color: #e1e5e9;
+}
 
-def create_loading_stylesheet():
-    """Stylesheet específico para la ventana de carga"""
-    return """
-    QDialog {
-        background-color: #0f0f0f;
-        border: 2px solid #00FF00;
-        border-radius: 10px;
-    }
-    
-    QLabel {
-        color: #00FF00;
-        font-family: 'Consolas', monospace;
-        font-size: 12pt;
-        font-weight: bold;
-    }
-    
-    QProgressBar {
-        background-color: #111111;
-        border: 2px solid #00FF00;
-        border-radius: 5px;
-        text-align: center;
-        color: #00FF00;
-        font-weight: bold;
-        height: 25px;
-    }
-    
-    QProgressBar::chunk {
-        background-color: #00FF00;
-        border-radius: 3px;
-    }
-    """
+QDialog QLabel {
+    color: #e1e5e9;
+    background-color: transparent;
+}
+
+QDialog QLineEdit {
+    background-color: #2d3748;
+    color: #e1e5e9;
+    border: 2px solid #4a5568;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 10pt;
+    selection-background-color: #4a90e2;
+    selection-color: #ffffff;
+}
+
+QDialog QLineEdit:focus {
+    border-color: #4a90e2;
+    background-color: #374151;
+}
+
+/* Estilos para los botones del diálogo */
+QDialogButtonBox QPushButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4a90e2, stop:1 #357abd);
+    color: #ffffff;
+    border: 1px solid #2c5282;
+    border-radius: 6px;
+    padding: 6px 15px;
+    font-weight: 600;
+    font-size: 9pt;
+    min-width: 80px;
+    min-height: 25px;
+}
+
+QDialogButtonBox QPushButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #5ba0f2, stop:1 #4682cd);
+    border-color: #3182ce;
+}
+
+QDialogButtonBox QPushButton:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #3182ce, stop:1 #2c5282);
+    border-color: #2a4365;
+}
+
+/* Estilos para enlaces de recuperación de contraseña */
+QLabel[linkActivated] {
+    color: #4a90e2;
+    text-decoration: none;
+}
+
+QLabel[linkActivated]:hover {
+    color: #5ba0f2;
+    text-decoration: underline;
+}
+
+/* Estilos para campos de email con validación */
+QLineEdit[emailValid="true"] {
+    border: 2px solid #68d391;
+}
+
+QLineEdit[emailValid="false"] {
+    border: 2px solid #f56565;
+}
+
+/* Estilos para etiquetas de advertencia y error */
+QLabel[warningLabel="true"] {
+    color: #f6ad55;
+    font-size: 9pt;
+    background-color: #2d3748;
+    border: 1px solid #f6ad55;
+    border-radius: 4px;
+    padding: 5px;
+    margin: 2px 0px;
+}
+
+QLabel[errorLabel="true"] {
+    color: #f56565;
+    font-size: 9pt;
+    background-color: #2d3748;
+    border: 1px solid #f56565;
+    border-radius: 4px;
+    padding: 5px;
+    margin: 2px 0px;
+}
+
+/* Estilos para el frame de consentimiento */
+QFrame[consentFrame="true"] {
+    background-color: #2d3748;
+    border: 1px solid #4a5568;
+    border-radius: 8px;
+    padding: 10px;
+    margin: 10px 0px;
+}
+
+/* Estilos para títulos de sección */
+QLabel[sectionTitle="true"] {
+    font-weight: bold;
+    font-size: 11pt;
+    color: #68d391;
+}
+
+/* Estilos para texto de consentimiento */
+QLabel[consentText="true"] {
+    color: #e1e5e9;
+    font-size: 9pt;
+    line-height: 1.4;
+}
+
+/* Estilos para etiquetas de checkbox */
+QLabel[checkboxLabel="true"] {
+    color: #68d391;
+    font-size: 10pt;
+}
+
+/* Mejoras para el layout de dos paneles en login */
+QWidget[imagePanel="true"] {
+    background-color: #1a1d23;
+    border-right: 1px solid #3d4650;
+}
+
+QWidget[formPanel="true"] {
+    background-color: #1a1d23;
+}
+
+/* Estilos para subtítulos */
+QLabel[subtitle="true"] {
+    color: #a0aec0;
+    font-size: 10pt;
+    margin-bottom: 10px;
+}
+"""
+
+def apply_additional_login_styles(app):
+    """Aplica los estilos adicionales para login y registro."""
+    current_stylesheet = app.styleSheet()
+    app.setStyleSheet(current_stylesheet + ADDITIONAL_LOGIN_STYLES)

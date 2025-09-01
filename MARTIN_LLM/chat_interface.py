@@ -3,18 +3,14 @@
 
 import sys
 from pathlib import Path
-from datetime import datetime, date, timedelta
-from collections import OrderedDict
-from PyQt6.QtWidgets import ( # Limpiando importaciones duplicadas
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QRadioButton, QSpacerItem, QComboBox, QInputDialog,
-    QButtonGroup,
-    QTextEdit, QLineEdit, QPushButton, QLabel, QCheckBox,
-    QMessageBox, QFrame, QSplitter, QListWidget,
-    QListWidgetItem, QFileDialog, QApplication, QSizePolicy, QToolButton, QProgressBar, QScrollArea
-)
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QThread, QPoint, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QIcon, QPixmap, QFontMetrics
-import markdown
+from datetime import datetime
+from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QRadioButton, QSpacerItem,
+                             QButtonGroup,
+                             QTextEdit, QLineEdit, QPushButton, QLabel, QCheckBox,
+                             QMessageBox, QFrame, QSplitter, QListWidget,
+                             QListWidgetItem, QFileDialog, QApplication, QSizePolicy, QToolButton, QProgressBar, QScrollArea)
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QThread, QPoint
+from PyQt6.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QIcon, QPixmap
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -34,33 +30,10 @@ from ui.llm_parameters_widget import LLMParametersWidget
 from ui.closing_dialog import ClosingDialog
 from ui.conversation_load_dialog import ConversationLoadDialog
 from bson.objectid import ObjectId
-from .custom_widgets import FramelessWindowMixin, CustomTitleBar
 import json
 # from app.agent import AGENT_SYSTEM_PROMPT_TEMPLATE
 from ui.process_log_window import ProcessLogWindow # Importar la nueva ventana de log
 
-
-class ModelComboBox(QComboBox):
-    """
-    Un QComboBox personalizado que abre el gestor de modelos si no hay modelos instalados
-    y el usuario hace clic en él.
-    """
-    open_model_manager_requested = pyqtSignal()
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.no_models_text = "No hay modelos instalados"
-
-    def mousePressEvent(self, event):
-        """
-        Sobrescribe el evento de clic del ratón. Si el ComboBox está en el estado
-        'sin modelos', emite una señal para abrir el gestor de modelos.
-        De lo contrario, se comporta como un QComboBox normal.
-        """
-        if self.count() == 1 and self.itemText(0) == self.no_models_text:
-            self.open_model_manager_requested.emit()
-        else:
-            super().mousePressEvent(event)
 
 class SystemStatsWidget(QFrame):
     """Widget para mostrar estadísticas del sistema con diseño futurista horizontal"""
@@ -127,10 +100,6 @@ class SystemStatsWidget(QFrame):
     def update_stats(self):
         """Actualiza las estadísticas del sistema"""
         try:
-            # Evitar el warning si el canvas aún no tiene tamaño
-            if self.canvas.width() == 0 or self.canvas.height() == 0:
-                return
-
             cpu = psutil.cpu_percent(interval=0.1)
             ram = psutil.virtual_memory().percent
             disk = psutil.disk_usage("/").percent
@@ -200,7 +169,7 @@ class CollapsiblePanel(QWidget):
         is_visible = self.content.isVisible()
         self.content.setVisible(not is_visible)
 
-class ChatInterface(QMainWindow, FramelessWindowMixin):
+class ChatInterface(QMainWindow):
     """Interfaz principal de chat en PyQt6"""
 
     logout_requested = pyqtSignal()
@@ -212,8 +181,6 @@ class ChatInterface(QMainWindow, FramelessWindowMixin):
         self.username = username
         self.selected_model_name = ""
         self.agent_mode = False
-        self.left_panel_width = 350 # Aumentar el ancho para dar espacio a los botones
-        self.right_panel_width = 400
         self.reasoner_mode = False
         self.model_manager = None
         self.stats_timer = None
@@ -224,8 +191,6 @@ class ChatInterface(QMainWindow, FramelessWindowMixin):
         self.user_service = user_service
         self.cleanup_in_progress = False
         self.is_ready_to_close = False
-        self._init_frameless_mixin()
-
         # Configurar ventana
         self.setWindowTitle(f"Martin LLM - {username}")
         self.setMinimumSize(1200, 800)
@@ -239,32 +204,9 @@ class ChatInterface(QMainWindow, FramelessWindowMixin):
         # Se elimina la inicialización en segundo plano. Todo se hace ahora de forma síncrona.
         self.resize(1400, 900)
         self.setup_ui()
-        self.populate_installed_models_combo()
         self.populate_recent_conversations()
         self.setup_stats_timer()
-        self.display_welcome_message()
-
-
-    def display_welcome_message(self):
-        """Muestra un mensaje de bienvenida con instrucciones en el historial de chat."""
-        welcome_text = """¡Bienvenido a Martin LLM!
-
-Aquí tienes una guía rápida para empezar:
-
-1.  **Selecciona un Modelo**: Usa el menú desplegable en la parte inferior para elegir un modelo. Si no tienes ninguno, haz clic en "Gestionar Modelos" en el panel derecho para instalar uno.
-
-2.  **Elige un Modo**:
-    - **Chat**: Para una conversación normal.
-    - **Agente**: Para darle al modelo acceso a herramientas y que pueda completar tareas.
-    - **Razonador**: Para problemas complejos que requieren planificación.
-
-3.  **Inicia la Conversación**: Escribe tu mensaje en el cuadro de texto y presiona Enter o el botón de enviar.
-
-4.  **Gestiona tus Chats**: Usa el panel izquierdo (puedes mostrarlo con el botón de comentarios en la parte superior) para ver, cargar, renombrar o eliminar conversaciones anteriores.
-
-¡Disfruta de tu asistente de IA personal!"""
-        welcome_message = {"role": "assistant", "content": welcome_text}
-        self.add_to_history(welcome_message, show_rating_buttons=False, is_markdown=True)
+        self.add_system_message("SISTEMA INICIALIZADO Y LISTO.", show_rating_buttons=False)
 
     def setup_ui(self):
         """Configura la interfaz de usuario"""
@@ -273,82 +215,96 @@ Aquí tienes una guía rápida para empezar:
         self.setCentralWidget(central_widget)
 
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
 
-        self.title_bar = CustomTitleBar(self, f"Martin LLM - {self.username}")
-        main_layout.addWidget(self.title_bar)
         main_frame = QFrame()
         main_frame.setObjectName("mainFrame")
         frame_layout = QVBoxLayout(main_frame)
         frame_layout.setContentsMargins(10, 10, 10, 10)
         frame_layout.setSpacing(10)
 
-        # Crear y añadir la nueva barra de controles
-        self.create_control_bar(frame_layout)
-
+        self.create_top_bar(frame_layout)
         self.create_central_area(frame_layout)
         main_layout.addWidget(main_frame)
 
-    def create_control_bar(self, parent_layout):
-        """Crea una barra de controles para los paneles."""
-        control_bar_frame = QFrame()
-        control_bar_frame.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        control_bar_frame.setObjectName("topBarFrame") # Reutilizamos un estilo existente
-        control_bar_frame.setStyleSheet("QFrame#topBarFrame { border-bottom: none; border-radius: 0; }")
-        
-        control_layout = QHBoxLayout(control_bar_frame)
-        control_layout.setContentsMargins(10, 5, 10, 5)
-        control_layout.setSpacing(10)
+    def show_model_manager_event(self, event):
+        """Maneja el evento de clic en la etiqueta del modelo."""
+        self.show_model_manager()
+    def create_top_bar(self, parent_layout):
+        """Crea la barra superior solo para la selección del modelo."""
+        top_bar_frame = QFrame()
+        top_bar_frame.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        top_bar_frame.setObjectName("topBarFrame")
+        top_bar_frame.setStyleSheet("QFrame#topBarFrame { border-bottom: 1px solid #3d4650; border-radius: 0; background-color: #1a1d23; }")
+        top_bar_layout = QHBoxLayout(top_bar_frame)
+        top_bar_layout.setContentsMargins(10, 5, 10, 5)
+        top_bar_layout.setSpacing(10)
 
-        # Botón para panel izquierdo (Conversaciones)
-        self.toggle_left_button = QPushButton(qta.icon('fa5s.comments', color="white"), "")
-        self.toggle_left_button.setObjectName("iconButton")
-        self.toggle_left_button.setFixedSize(40, 40)
-        self.toggle_left_button.setToolTip("Mostrar/Ocultar panel de conversaciones")
-        self.toggle_left_button.clicked.connect(self.toggle_left_panel)
-        control_layout.addWidget(self.toggle_left_button)
+        initial_model_name = "[NINGUNO SELECCIONADO]"
+        if self.chat_engine and self.chat_engine.provider:
+            model_path = Path(self.chat_engine.provider.model_identifier)
+            initial_model_name = model_path.name.upper()
+            self.selected_model_name = self.chat_engine.provider.model_identifier
 
-        control_layout.addStretch()
+        models_label = QLabel("Modelo:")
+        models_label.setStyleSheet("font-weight: bold; color: #a0aec0;")
+        top_bar_layout.addWidget(models_label)
 
-        # Botón para panel derecho (Ajustes) y otros controles
-        self.toggle_right_button = QPushButton(qta.icon('fa5s.cog', color="white"), "")
-        self.toggle_right_button.setObjectName("iconButton")
-        self.toggle_right_button.setFixedSize(40, 40)
-        self.toggle_right_button.setToolTip("Mostrar/Ocultar panel de ajustes")
-        self.toggle_right_button.clicked.connect(self.toggle_right_panel)
-        control_layout.addWidget(self.toggle_right_button)
+        self.model_label = QLabel(f"[{initial_model_name}]")
+        self.model_label.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        self.model_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.model_label.setToolTip("Haz clic para gestionar los modelos")
+        self.model_label.mousePressEvent = self.show_model_manager_event
+        top_bar_layout.addWidget(self.model_label)
 
-        parent_layout.addWidget(control_bar_frame)
+        top_bar_layout.addStretch(1)
 
+        user_info_layout = QHBoxLayout()
+        user_info_layout.setSpacing(5)
+        user_info_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+        profile_icon = QLabel()
+        profile_icon.setPixmap(qta.icon("fa5s.user-circle", color="#90cdf4").pixmap(22, 22))
+        user_info_layout.addWidget(profile_icon)
+
+        username_label = QLabel(self.username.upper())
+        username_label.setStyleSheet("font-weight: bold; font-size: 11pt; color: #90cdf4;")
+        user_info_layout.addWidget(username_label)
+
+        top_bar_layout.addLayout(user_info_layout)
+
+        top_bar_layout.addStretch(1)
+
+        actions_label = QLabel("Acciones:")
+        actions_label.setStyleSheet("font-weight: bold; color: #a0aec0;")
+        top_bar_layout.addWidget(actions_label)
+
+        controls = [
+            {"icon": qta.icon("fa5.file"), "tooltip": "Nueva conversación", "action": self.start_new_conversation},
+            {"icon": qta.icon("fa5.folder-open"), "tooltip": "Cargar conversación", "action": self.load_conversation},
+            {"icon": qta.icon("fa5s.file-export"), "tooltip": "Exportar conversación", "action": self.export_conversation},
+            {"icon": qta.icon("fa5s.sign-out-alt"), "tooltip": "Cerrar sesión", "action": self.logout},
+        ]
+        for ctrl in controls:
+            btn = QPushButton()
+            btn.setIcon(ctrl["icon"])
+            btn.setToolTip(ctrl["tooltip"])
+            btn.setFixedSize(35, 35)
+            btn.clicked.connect(ctrl["action"])
+            top_bar_layout.addWidget(btn)
+
+        parent_layout.addWidget(top_bar_frame)
     def create_central_area(self, parent_layout):
         """Crea el área central con chat, entrada y estadísticas"""
-        # Usamos un layout horizontal en lugar de un QSplitter para permitir animaciones.
-        central_area_widget = QWidget()
-        central_area_layout = QHBoxLayout(central_area_widget)
-        central_area_layout.setContentsMargins(0, 0, 0, 0)
-        central_area_layout.setSpacing(0) # Sin espacio entre paneles para un look integrado
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # --- Left Panel Area ---
-        self.left_panel = QWidget()
+        self.left_panel = self.create_left_panel_widget()
         self.left_panel.setObjectName("leftSidePanel")
-        left_area_layout = QVBoxLayout(self.left_panel)
-        left_area_layout.setContentsMargins(0, 0, 0, 0)
-        left_area_layout.setSpacing(5)
 
-        # El botón para toggle se ha movido a la top_bar
-
-        # Create the conversations panel and add it
-        self.conversations_panel = self.create_conversations_panel()
-        left_area_layout.addWidget(self.conversations_panel)
-        # Estado inicial para la animación (oculto)
-        self.left_panel.setMaximumWidth(0)
-
-        # --- Central Chat Area ---
         chat_frame = QFrame()
         chat_layout = QVBoxLayout(chat_frame)
-        chat_layout.setContentsMargins(20, 0, 20, 0) # Reducido el padding horizontal para un área de chat más ancha
+        chat_layout.setContentsMargins(0, 0, 0, 0)
         chat_layout.setSpacing(10)
 
         # Create a scroll area for chat history
@@ -358,23 +314,14 @@ Aquí tienes una guía rápida para empezar:
 
         # Widget to hold the messages
         self.history_content_widget = QWidget()
-        # Layout contenedor que permitirá centrar los mensajes verticalmente
-        history_container_layout = QVBoxLayout(self.history_content_widget)
-        history_container_layout.setContentsMargins(0, 0, 0, 0)
-        history_container_layout.setSpacing(0)
-
-        # Widget que contendrá la lista real de mensajes
-        messages_widget = QWidget()
-        self.history_layout = QVBoxLayout(messages_widget)
-        self.history_layout.setContentsMargins(15, 5, 15, 5)
-        self.history_layout.setSpacing(15)
-        self.history_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-
-        history_container_layout.addStretch(1)
-        history_container_layout.addWidget(messages_widget)
-        history_container_layout.addStretch(1)
+        self.history_layout = QVBoxLayout(self.history_content_widget)
+        self.history_layout.setContentsMargins(0, 0, 0, 0)
+        self.history_layout.setSpacing(5)
+        self.history_layout.setAlignment(Qt.AlignmentFlag.AlignTop) # Align messages to the top
 
         self.history_scroll_area.setWidget(self.history_content_widget)
+
+        chat_layout.addWidget(self.create_mode_selection_widget())
         chat_layout.addWidget(self.history_scroll_area, stretch=1)
 
         # Indicador de carga
@@ -382,212 +329,101 @@ Aquí tienes una guía rápida para empezar:
         self.loading_indicator.setRange(0, 0)  # Modo indeterminado
         self.loading_indicator.setVisible(False)
         self.loading_indicator.setTextVisible(False)
-        self.loading_indicator.setFixedHeight(10) # Más delgado y discreto
+        self.loading_indicator.setFixedHeight(5) # Más delgado y discreto
         chat_layout.addWidget(self.loading_indicator)
 
-        # Input Frame
         input_frame = QFrame()
-        input_layout = QVBoxLayout(input_frame)
-        input_layout.setContentsMargins(150, 5, 150, 5) # Corregido padding asimétrico
+        input_layout = QHBoxLayout(input_frame)
+        input_layout.setContentsMargins(10, 10, 10, 10)
 
         self.input_text = QTextEdit()
         self.input_text.setObjectName("inputText")
+        self.input_text.setMaximumHeight(82)
         self.input_text.setPlaceholderText("Escribe tu prompt aquí...")
         self.input_text.keyPressEvent = self.input_key_press
-        self.input_text.textChanged.connect(self.adjust_input_text_height)
         input_layout.addWidget(self.input_text)
 
-        # Establecer la altura inicial del input
-        self.adjust_input_text_height()
-        bottom_bar_widget = QWidget()
-        bottom_bar_layout = QHBoxLayout(bottom_bar_widget)
-
-        bottom_bar_layout.setContentsMargins(0, 0, 0, 0)
-        bottom_bar_layout.setSpacing(10)
-
-        # Selector de modelo instalado
-        self.installed_models_combo = ModelComboBox()
-        self.installed_models_combo.setObjectName("installedModelsCombo")
-        self.installed_models_combo.setToolTip("Seleccionar un modelo instalado localmente")
-        self.installed_models_combo.currentIndexChanged.connect(self.on_installed_model_selected)
-        self.installed_models_combo.open_model_manager_requested.connect(self.show_model_manager)
-        bottom_bar_layout.addWidget(self.installed_models_combo)
-
-        # Selector de modo
-        label = QLabel("Modo:")
-        bottom_bar_layout.addWidget(label)
-        self.mode_selector = self.create_mode_selection_widget()
-        bottom_bar_layout.addWidget(self.mode_selector)
-
-        # Botones de acción secundarios
-        self.attach_button = QPushButton()
-        self.attach_button.setObjectName("iconButton")
-        self.attach_button.setIcon(qta.icon("fa5s.paperclip", color="white"))
-        self.attach_button.setToolTip("Adjuntar archivo")
-        self.attach_button.setFixedSize(40, 40)
-        self.attach_button.clicked.connect(self.attach_file)
-        bottom_bar_layout.addWidget(self.attach_button)
-
-        self.new_conv_button = QPushButton()
-        self.new_conv_button.setObjectName("iconButton")
-        self.new_conv_button.setIcon(qta.icon("fa5.file", color="white"))
-        self.new_conv_button.setToolTip("Nueva conversación")
-        self.new_conv_button.setFixedSize(40, 40)
-        self.new_conv_button.clicked.connect(self.start_new_conversation)
-        bottom_bar_layout.addWidget(self.new_conv_button)
-
-        self.export_button = QPushButton()
-        self.export_button.setObjectName("iconButton")
-        self.export_button.setIcon(qta.icon("fa5s.file-export", color="white"))
-        self.export_button.setToolTip("Exportar conversación")
-        self.export_button.setFixedSize(40, 40)
-        self.export_button.clicked.connect(self.export_conversation)
-        bottom_bar_layout.addWidget(self.export_button)
-
-        self.logout_button = QPushButton()
-        self.logout_button.setObjectName("iconButton")
-        self.logout_button.setIcon(qta.icon("fa5s.sign-out-alt", color="white"))
-        self.logout_button.setToolTip("Cerrar sesión")
-        self.logout_button.setFixedSize(40, 40)
-        self.logout_button.clicked.connect(self.logout)
-        bottom_bar_layout.addWidget(self.logout_button)
-
-        # Espaciador para empujar el botón de enviar a la derecha
-        bottom_bar_layout.addStretch()
-
-        # Botón de enviar
+        action_buttons_layout = QVBoxLayout()
+        action_buttons_layout.setSpacing(5)
         self.send_button = QPushButton()
-        self.send_button.setObjectName("sendButton")
-        self.send_button.setIcon(qta.icon("fa5s.paper-plane", color="#1a1d23"))
+        self.send_button.setIcon(qta.icon("fa5s.paper-plane"))
         self.send_button.setToolTip("Enviar mensaje (Enter)")
-        self.send_button.setFixedSize(80, 40)
+        self.send_button.setFixedSize(80, 80)
         self.send_button.clicked.connect(self.send_message)
-        bottom_bar_layout.addWidget(self.send_button)
+        self.attach_button = QPushButton()
+        self.attach_button.setIcon(qta.icon("fa5s.paperclip"))
+        self.attach_button.setToolTip("Adjuntar archivo")
+        self.attach_button.setFixedSize(80, 40)
+        self.attach_button.clicked.connect(self.attach_file)
 
-        input_layout.addWidget(bottom_bar_widget)
+        action_buttons_layout.addWidget(self.send_button)
+        action_buttons_layout.addWidget(self.attach_button)
+        input_layout.addLayout(action_buttons_layout)
         chat_layout.addWidget(input_frame)
 
-        # --- Right Panel Area ---
-        self.right_panel = QWidget()
-        self.right_panel.setObjectName("rightSidePanel")
-        right_layout = QVBoxLayout(self.right_panel)
+        right_panel = QWidget()
+        right_panel.setObjectName("rightSidePanel")
+        right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(10)
-        self.model_selection_panel = self.create_model_selection_panel()
         system_prompt_widget = self.create_system_prompt_widget()
         self.parameters_panel = self.create_parameters_panel()
         self.system_stats_panel = self.create_system_stats_panel()
-        right_layout.addWidget(self.model_selection_panel)
+
         right_layout.addWidget(self.parameters_panel)
         right_layout.addWidget(system_prompt_widget)
         right_layout.addWidget(self.system_stats_panel)
+
         right_layout.addStretch(1)
-        # Estado inicial para la animación (oculto)
-        self.right_panel.setMaximumWidth(0)
 
-        # Añadir los widgets al layout horizontal
-        central_area_layout.addWidget(self.left_panel)
-        # El panel central de chat ocupa todo el espacio restante
-        central_area_layout.addWidget(chat_frame, 1)
-        central_area_layout.addWidget(self.right_panel)
-
-        parent_layout.addWidget(central_area_widget)
-
-        # Ya no se usa QSplitter ni se ocultan los paneles con hide()
-        # para permitir la animación del ancho.
-
-
-    def create_conversations_panel(self):
-        """Crea el panel que contiene la lista de conversaciones."""
-        conversations_widget = QFrame()
-        conversations_widget.setObjectName("leftPanelFrame")
-        left_panel_layout = QVBoxLayout(conversations_widget)
-        left_panel_layout.setContentsMargins(10, 10, 10, 10)
-        left_panel_layout.setSpacing(10)
-
-        self.conv_title_label = QLabel("CONVERSACIONES")
-        self.conv_title_label.setObjectName("panelTitle")
-        left_panel_layout.addWidget(self.conv_title_label)
-        self.recent_convs_list = QListWidget()
-        self.recent_convs_list.setObjectName("recentConvsList")
-        self.recent_convs_list.itemDoubleClicked.connect(self.on_recent_conversation_selected)
-        left_panel_layout.addWidget(self.recent_convs_list)
-        return conversations_widget
-
-    def toggle_left_panel(self):
-        """Muestra u oculta el panel de conversaciones recientes con una animación suave."""
-        if not hasattr(self, "left_panel"):
-            return
-
-        current_width = self.left_panel.maximumWidth()
-        target_width = self.left_panel_width if current_width == 0 else 0
-
-        self.left_animation = QPropertyAnimation(self.left_panel, b"maximumWidth")
-        self.left_animation.setDuration(300) # Duración en milisegundos
-        self.left_animation.setStartValue(current_width)
-        self.left_animation.setEndValue(target_width)
-        self.left_animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
-        self.left_animation.start()
-
-    def toggle_right_panel(self):
-        """Muestra u oculta el panel de ajustes con una animación suave."""
-        if not hasattr(self, "right_panel"):
-            return
-
-        current_width = self.right_panel.maximumWidth()
-        target_width = self.right_panel_width if current_width == 0 else 0
-
-        self.right_animation = QPropertyAnimation(self.right_panel, b"maximumWidth")
-        self.right_animation.setDuration(300) # Duración en milisegundos
-        self.right_animation.setStartValue(current_width)
-        self.right_animation.setEndValue(target_width)
-        self.right_animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
-        self.right_animation.start()
-
+        main_splitter.addWidget(self.left_panel)
+        main_splitter.addWidget(chat_frame)
+        main_splitter.addWidget(right_panel)
+        main_splitter.setSizes([250, 800, 400])
+        parent_layout.addWidget(main_splitter)
     def create_mode_selection_widget(self):
-        """Crea un combo box para seleccionar el modo de operación."""
-        mode_combo = QComboBox()
-        mode_combo.setObjectName("modeSelector")
+        """Crea y devuelve el widget para seleccionar el modo de operación."""
+        mode_frame = QFrame()
+        mode_frame.setObjectName("topBarFrame")
+        mode_frame.setStyleSheet("QFrame#topBarFrame { border-top: 1px solid #3d4650; border-bottom: 1px solid #3d4650; border-radius: 0; background-color: #1a1d23; }")
 
-        # Definir modos con iconos y datos
-        self.modes_data = [
-            {"icon": "fa5s.comments", "text": "Chat", "data": "chat"},
-            {"icon": "fa5s.user-secret", "text": "Agente", "data": "agent"},
-            {"icon": "fa5s.brain", "text": "Razonador", "data": "reasoner"}
-        ]
+        mode_layout = QHBoxLayout(mode_frame)
+        mode_layout.setContentsMargins(10, 5, 10, 5)
+        mode_layout.setSpacing(15)
 
-        for mode in self.modes_data:
-            icon = qta.icon(mode["icon"], color="white")
-            mode_combo.addItem(icon, mode["text"], userData=mode["data"])
+        self.toggle_panel_button = QPushButton(qta.icon('fa5s.align-justify', color="white"), "")
+        self.toggle_panel_button.setToolTip("Mostrar/Ocultar panel de conversaciones")
+        self.toggle_panel_button.setFixedSize(35, 35)
+        self.toggle_panel_button.clicked.connect(self.toggle_left_panel)
+        mode_layout.addWidget(self.toggle_panel_button)
 
-        # Establecer modo por defecto
-        mode_combo.setCurrentIndex(0)
+        mode_title = QLabel("MODO:")
+        mode_title.setStyleSheet("font-weight: bold; color: #a0aec0;")
+        mode_layout.addWidget(mode_title)
 
-        # Conexiones para la lógica de visualización de iconos
-        mode_combo.view().pressed.connect(self.on_mode_combo_show_popup)
-        mode_combo.currentIndexChanged.connect(self._update_mode_display)
+        self.mode_button_group = QButtonGroup(self)
 
-        # Conectar cambio de selección para la lógica de la aplicación
-        mode_combo.currentIndexChanged.connect(self.on_mode_changed)
+        self.chat_mode_radio = QRadioButton("Chat")
+        self.chat_mode_radio.setToolTip("Conversación normal con el modelo.")
+        self.chat_mode_radio.setChecked(True)
 
-        self.mode_combo = mode_combo  # Asignar el QComboBox a self.mode_combo
-        self._update_mode_display(0)  # Llamada inicial para ocultar el texto
-        return mode_combo
+        self.agent_mode_radio = QRadioButton("Agente")
+        self.agent_mode_radio.setToolTip("Activa el modo agente para realizar tareas con herramientas.")
 
-    def on_mode_combo_show_popup(self, index):
-        """Restaura el texto de todos los items antes de mostrar el desplegable."""
-        for i, mode_info in enumerate(self.modes_data):
-            self.mode_combo.setItemText(i, mode_info["text"])
+        self.reasoner_mode_radio = QRadioButton("Razonador")
+        self.reasoner_mode_radio.setToolTip("Activa el modo razonador para planificar y ejecutar tareas muy complejas.")
 
-    def _update_mode_display(self, index):
-        """
-        Oculta el texto del item seleccionado después de que el desplegable se cierra,
-        mostrando solo el icono.
-        """
-        # Usamos un QTimer para asegurar que el texto se oculte después de que el
-        # desplegable se haya cerrado y la selección se haya procesado.
-        QTimer.singleShot(0, lambda: self.mode_combo.setItemText(index, ""))
+        mode_layout.addWidget(self.chat_mode_radio)
+        mode_layout.addWidget(self.agent_mode_radio)
+        mode_layout.addWidget(self.reasoner_mode_radio)
+        mode_layout.addStretch()
 
+        self.mode_button_group.addButton(self.chat_mode_radio)
+        self.mode_button_group.addButton(self.agent_mode_radio)
+        self.mode_button_group.addButton(self.reasoner_mode_radio)
+        self.mode_button_group.buttonToggled.connect(self.on_mode_changed)
+
+        return mode_frame
     def create_system_prompt_widget(self):
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
@@ -600,30 +436,12 @@ Aquí tienes una guía rápida para empezar:
         content_layout.addWidget(self.system_prompt_edit)
 
         self.update_prompt_btn = QPushButton("Actualizar System Prompt")
-        self.update_prompt_btn.setObjectName("primaryButton")
         self.update_prompt_btn.clicked.connect(self.update_system_prompt)
         content_layout.addWidget(self.update_prompt_btn)
 
         collapsible_panel = CollapsiblePanel("SYSTEM PROMPT", content_widget=content_widget)
         collapsible_panel.content.setVisible(True)
         return collapsible_panel
-    def create_model_selection_panel(self):
-        content_widget = QWidget()
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(10, 10, 10, 10)
-        content_layout.setSpacing(10)
-
-        # The combo box has been moved to the bottom bar.
-        # This panel now only contains the button to manage models.
-        
-        self.manage_models_button = QPushButton("Gestionar Modelos (Instalar/Eliminar)")
-        self.manage_models_button.clicked.connect(self.show_model_manager)
-        content_layout.addWidget(self.manage_models_button)
-
-        collapsible_panel = CollapsiblePanel("SELECCIÓN DE MODELO", content_widget=content_widget)
-        collapsible_panel.content.setVisible(True) # Initially expanded
-        return collapsible_panel
-
     def create_system_stats_panel(self):
         content_widget = SystemStatsWidget()
         collapsible_panel = CollapsiblePanel("MONITOR DEL SISTEMA", content_widget=content_widget)
@@ -652,7 +470,7 @@ Aquí tienes una guía rápida para empezar:
         title_label = QLabel("CONVERSACIONES")
         title_label.setObjectName("panelTitle")
         left_panel_layout.addWidget(title_label)
-        
+
         self.recent_convs_list = QListWidget()
         self.recent_convs_list.setObjectName("recentConvsList")
         self.recent_convs_list.itemDoubleClicked.connect(self.on_recent_conversation_selected)
@@ -667,121 +485,73 @@ Aquí tienes una guía rápida para empezar:
                 placeholder_item = QListWidgetItem("No hay conversaciones recientes.")
                 placeholder_item.setFlags(placeholder_item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
                 self.recent_convs_list.addItem(placeholder_item)
+                self.recent_convs_list.setMinimumWidth(200)  # ancho mínimo por defecto
                 return
 
             sorted_convs = sorted(conversations, key=lambda x: x.get('timestamp', datetime.min), reverse=True)
 
-            max_calculated_width = 0 # Variable para rastrear el ancho máximo necesario
-
-            # --- Agrupación de conversaciones ---
-            groups = OrderedDict()
-            today = date.today()
-            yesterday = today - timedelta(days=1)
-            meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+            max_row_width = 0  # vamos a calcular el ancho máximo necesario
 
             for conv in sorted_convs:
-                timestamp = conv.get("timestamp", datetime.now())
-                if not isinstance(timestamp, datetime):
-                    continue
-
-                conv_date = timestamp.date()
-                
-                if conv_date == today:
-                    group_key = "Hoy"
-                elif conv_date == yesterday:
-                    group_key = "Ayer"
-                else:
-                    # Para fechas más antiguas, usamos un formato legible
-                    group_key = f"{conv_date.day} de {meses[conv_date.month - 1]} de {conv_date.year}"
-
-                if group_key not in groups:
-                    groups[group_key] = []
-                groups[group_key].append(conv)
-
-            # --- Poblado del QListWidget ---
-            def add_header_item(text):
-                header_item = QListWidgetItem(text.upper())
-                header_item.setFlags(header_item.flags() & ~Qt.ItemFlag.ItemIsSelectable & ~Qt.ItemFlag.ItemIsEnabled)
-                font = header_item.font()
-                font.setBold(True)
-                header_item.setFont(font)
-                header_item.setForeground(QColor("#a0aec0"))
-                self.recent_convs_list.addItem(header_item)
-
-            def add_conv_item(conv):
-                nonlocal max_calculated_width
                 conv_id = str(conv.get("_id"))
                 title = conv.get("title", "Sin título")
-
-                # Limitar el título a 5 palabras para la visualización
-                words = title.split()
-                if len(words) > 5:
-                    display_title = " ".join(words[:5]) + "..."
-                else:
-                    display_title = title
+                timestamp = conv.get("timestamp", datetime.now())
+                date_str = timestamp.strftime('%Y-%m-%d') if isinstance(timestamp, datetime) else "Fecha desc."
 
                 row_widget = QWidget()
                 row_widget.setObjectName("recentConvRow")
                 row_layout = QHBoxLayout(row_widget)
                 row_layout.setContentsMargins(5, 2, 5, 2)
                 row_layout.setSpacing(5)
-                # El título ya no lleva la fecha
-                title_label = QLabel(display_title)
-                title_label.setToolTip(f"Doble clic para cargar: {title}") # El tooltip muestra el título completo
+
+                title_label = QLabel(f"[{date_str}] {title}")
+                title_label.setToolTip(f"Doble clic para cargar: {title}")
                 title_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+                title_label.setMinimumWidth(80)  # siempre muestra algo del título
+
                 rename_button = QPushButton(qta.icon('fa5s.edit', color="white"), "")
                 rename_button.setFixedSize(20, 20)
                 rename_button.setToolTip("Renombrar conversación")
-                rename_button.setStyleSheet("QPushButton { border-radius: 10px; background: transparent; padding: 0; } QPushButton:hover { background-color: #4a90e2; }")
+                rename_button.setStyleSheet("""
+                    QPushButton { border-radius: 10px; background: transparent; padding: 0; }
+                    QPushButton:hover { background-color: #4a90e2; }
+                """)
                 rename_button.clicked.connect(lambda checked=False, c_id=conv_id, c_title=title: self.rename_recent_conversation(c_id, c_title))
 
                 delete_button = QPushButton(qta.icon('fa5s.trash-alt', color="white"), "")
                 delete_button.setFixedSize(20, 20)
                 delete_button.setToolTip("Eliminar esta conversación")
-                delete_button.setStyleSheet("QPushButton { border-radius: 10px; background: transparent; padding: 0; } QPushButton:hover { background-color: #4a90e2; }")
+                delete_button.setStyleSheet("""
+                    QPushButton { border-radius: 10px; background: transparent; padding: 0; }
+                    QPushButton:hover { background-color: #4a90e2; }
+                """)
                 delete_button.clicked.connect(lambda checked=False, c_id=conv_id: self.delete_recent_conversation(c_id))
 
                 row_layout.addWidget(title_label)
                 row_layout.addWidget(rename_button)
                 row_layout.addWidget(delete_button)
 
-                # Calcular el ancho mínimo necesario para esta fila para asegurar que todo es visible
-                font_metrics = QFontMetrics(title_label.font())
-                title_width = font_metrics.horizontalAdvance(display_title)
-                # Ancho total = márgenes(5+5) + título + espaciado(5) + botón(20) + espaciado(5) + botón(20)
-                required_width = 10 + title_width + 10 + 40
-                max_calculated_width = max(max_calculated_width, required_width)
-
                 item = QListWidgetItem()
                 item.setData(Qt.ItemDataRole.UserRole, conv_id)
-                item.setSizeHint(row_widget.sizeHint())
+                size_hint = row_widget.sizeHint()
+                size_hint.setHeight(max(size_hint.height(), 40))
+                item.setSizeHint(size_hint)
 
                 self.recent_convs_list.addItem(item)
                 self.recent_convs_list.setItemWidget(item, row_widget)
 
-            # Mover el bucle de población fuera de las funciones helper
-            for group_name, convs_in_group in groups.items():
-                add_header_item(group_name)
-                for conv in convs_in_group:
-                    add_conv_item(conv)
+                # calcular ancho necesario para esta fila
+                row_width = row_widget.sizeHint().width()
+                max_row_width = max(max_row_width, row_width)
 
-            # Actualizar el ancho del panel izquierdo basado en el contenido
-            if max_calculated_width > 0:
-                # El layout del panel de conversaciones (conversations_panel) tiene márgenes de 10px.
-                # El ancho total del panel debe ser el ancho de la fila + los márgenes del panel.
-                total_panel_width = max_calculated_width + 20  # 10px margin on each side
+            # aplicar el ancho mínimo calculado al panel
+            self.recent_convs_list.setMinimumWidth(max_row_width + 20)  # un pequeño margen
 
-                # Establecer un rango razonable para el ancho del panel.
-                new_width = max(350, min(total_panel_width, 500))
-                self.left_panel_width = new_width
-
-                # Si el panel ya está visible, reajustar su tamaño.
-                if self.left_panel.maximumWidth() > 0:
-                    self.left_panel.setMaximumWidth(self.left_panel_width)
         except Exception as e:
             print(f"Error al poblar conversaciones recientes: {e}")
             self.recent_convs_list.clear()
             self.recent_convs_list.addItem("Error al cargar.")
+            self.recent_convs_list.setMinimumWidth(200)
     def rename_recent_conversation(self, conversation_id: str, current_title: str):
         """Permite al usuario renombrar una conversación."""
         new_title, ok = QInputDialog.getText(self, "Renombrar Conversación", 
@@ -830,30 +600,6 @@ Aquí tienes una guía rápida para empezar:
                 return
         # Llamar al método original
         QTextEdit.keyPressEvent(self.input_text, event)
-
-    def adjust_input_text_height(self):
-        """Ajusta la altura del QTextEdit dinámicamente según el contenido."""
-        document = self.input_text.document()
-        # La altura ideal del documento
-        content_height = document.size().height()
-        
-        # Altura de una sola línea para calcular la altura mínima
-        font_metrics = self.input_text.fontMetrics()
-        single_line_height = font_metrics.height()
-
-        # Padding vertical (top + bottom) y borde (top + bottom) definidos en el CSS
-        # padding: 8px 15px -> 8*2 = 16px
-        # border: 2px -> 2*2 = 4px
-        chrome_height = 20 
-
-        # Altura mínima para una línea, y máxima para unas 5 líneas
-        min_height = single_line_height + chrome_height
-        max_height = (single_line_height * 5) + chrome_height
-
-        # La altura objetivo es la del contenido más el "chrome" (padding y borde)
-        target_height = content_height + chrome_height
-        final_height = max(min_height, min(target_height, max_height))
-        self.input_text.setFixedHeight(int(final_height))
     def setup_stats_timer(self):
         """Configura el temporizador para actualizar estadísticas"""
         self.stats_timer = QTimer()
@@ -861,14 +607,18 @@ Aquí tienes una guía rápida para empezar:
         self.stats_timer.timeout.connect(self.system_stats_panel.content.update_stats)
         self.stats_timer.start(7000)  # Actualizar cada 7 segundos       
     def show_model_manager(self):
-        """Muestra el gestor de modelos como un diálogo modal centrado."""
+        """Muestra el gestor de modelos justo debajo de la etiqueta."""
         if self.model_manager and self.model_manager.isVisible():
             self.model_manager.activateWindow()
             return   
         self.model_manager = ModelManagerWidget(self)
         self.model_manager.model_selected.connect(self.on_model_selected)
-        self.model_manager.exec() # Show as modal dialog
-        self.populate_installed_models_combo() # Refrescar la lista después de cerrar el gestor
+        # Calcular la posición para que aparezca debajo de la etiqueta del modelo
+        # Obtenemos la posición del borde inferior izquierdo de la etiqueta en coordenadas globales
+        bottom_left = self.model_label.mapToGlobal(QPoint(0, self.model_label.height()))
+        # Añadimos un pequeño margen para que no esté pegado
+        self.model_manager.move(bottom_left.x(), bottom_left.y() + 5)
+        self.model_manager.show()
     def on_model_selected(self, model_identifier):
         """Maneja la selección de un modelo para iniciar una nueva conversación."""
         print(f"[DEBUG] ChatInterface.on_model_selected llamado con modelo: {model_identifier}")
@@ -897,7 +647,7 @@ Aquí tienes una guía rápida para empezar:
             self.chat_engine.provider = provider
             
             self.selected_model_name = model_identifier # Guardamos el identificador completo
-            self.update_installed_models_combo_selection()
+            self.model_label.setText(f"> MODELO: [{display_name.upper()}] - ACTIVO")
 
             # Al seleccionar un nuevo modelo, siempre iniciamos una nueva conversación.
             self.chat_engine.start_new()
@@ -912,26 +662,29 @@ Aquí tienes una guía rápida para empezar:
             error_msg = f"No se pudo cargar el modelo '{Path(model_identifier).name}':\n{e}"
             print(f"[ERROR] {error_msg}")
             QMessageBox.critical(self, "Error al Cargar Modelo", error_msg)
+            self.model_label.setText(f"> MODELO: [ERROR AL CARGAR]")
             self.chat_engine.provider = None
-    def _create_message_widget(self, role, content, message_obj=None, show_rating_buttons=True, is_markdown=False):
+    def _create_message_widget(self, role, content, message_obj=None, show_rating_buttons=True):
         """Crea un widget para un mensaje individual con su contenido y botones de calificación."""
-        
-        # Para mensajes de usuario y asistente
         message_widget = QWidget()
         message_layout = QVBoxLayout(message_widget)
-        message_layout.setContentsMargins(0, 0, 0, 0)
-        message_layout.setSpacing(3)
+        message_layout.setContentsMargins(5, 5, 5, 5)
+        message_layout.setSpacing(2)
 
-        # Configuración según el rol
+        # Role label
         if role == "user":
-            display_role = "Tú"
-            style = "font-weight: bold; color: #90cdf4;" # Azul más claro
+            display_role = "Usuario"
+            style = "font-weight: bold; color: #366de4;"
             alignment = Qt.AlignmentFlag.AlignRight
         elif role == "assistant":
             display_role = "Martin LLM"
             style = "font-weight: bold; color: #9ae6b4;"
             alignment = Qt.AlignmentFlag.AlignLeft
-        else: # Fallback
+        elif role == "system":
+            display_role = "Sistema"
+            style = "font-weight: bold; color: #fbb6ce;"
+            alignment = Qt.AlignmentFlag.AlignCenter
+        else:
             display_role = role.capitalize()
             style = "font-weight: bold; color: #e1e5e9;"
             alignment = Qt.AlignmentFlag.AlignLeft
@@ -942,77 +695,62 @@ Aquí tienes una guía rápida para empezar:
         message_layout.addWidget(role_label)
 
         # Message content
-        content_label = QLabel()
+        content_label = QLabel(content)
         content_label.setWordWrap(True)
         content_label.setStyleSheet("background-color: #2d3748; padding: 10px; border-radius: 8px;")
-        content_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.LinksAccessibleByMouse)
-        content_label.setOpenExternalLinks(True)
-        content_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter) # Siempre alinear texto a la izquierda dentro de la burbuja
-
-        if is_markdown:
-            html_content = markdown.markdown(content, extensions=['fenced_code', 'tables'])
-            content_label.setText(html_content)
-        else:
-            content_label.setText(content)
-
+        content_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        content_label.setAlignment(alignment)
         message_layout.addWidget(content_label)
 
         # Rating buttons (only for assistant messages and if enabled)
         if role == "assistant" and show_rating_buttons:
             rating_layout = QHBoxLayout()
-            rating_layout.setContentsMargins(0, 2, 5, 0)
+            rating_layout.setContentsMargins(0, 0, 0, 0)
             rating_layout.setSpacing(5)
-             # Alinear botones a la derecha dentro de la burbuja
-            rating_layout.addStretch()
+            if alignment == Qt.AlignmentFlag.AlignRight:
+                rating_layout.addStretch()
             self.create_rating_buttons(rating_layout, role, content)
+            if alignment == Qt.AlignmentFlag.AlignLeft:
+                rating_layout.addStretch()
             message_layout.addLayout(rating_layout)
 
-        # Layout contenedor para alinear la burbuja a izq/der
+        # Add stretch to push messages to top/bottom based on alignment
         outer_layout = QHBoxLayout()
-        outer_layout.setContentsMargins(0, 0, 0, 0)
-        outer_layout.setSpacing(0)
-        # La burbuja ocupará hasta un ~90% del ancho disponible para dar más espacio.
         if alignment == Qt.AlignmentFlag.AlignRight:
-            outer_layout.addStretch(1) 
-            outer_layout.addWidget(message_widget, 9)
+            outer_layout.addStretch()
+            outer_layout.addWidget(message_widget)
         else:
-            outer_layout.addWidget(message_widget, 9)
-            outer_layout.addStretch(1)
+            outer_layout.addWidget(message_widget)
+            outer_layout.addStretch()
 
         container_widget = QWidget()
         container_widget.setLayout(outer_layout)
         return container_widget
 
-    def add_to_history(self, message_obj, show_rating_buttons=True, is_markdown=False):
+    def add_to_history(self, message_obj, show_rating_buttons=True):
         """Añade un mensaje al historial de la UI.
 
         Args:
             message_obj (dict): Diccionario con 'role' y 'content'.
             show_rating_buttons (bool): Si se deben mostrar los botones de rating para este mensaje.
-            is_markdown (bool): Si el contenido debe ser renderizado como Markdown.
         """
         role = message_obj.get("role", "unknown")
         content = message_obj.get("content", "")
 
-        message_widget = self._create_message_widget(role, content, message_obj, show_rating_buttons, is_markdown=is_markdown)
+        message_widget = self._create_message_widget(role, content, message_obj, show_rating_buttons)
         self.history_layout.addWidget(message_widget)
         QTimer.singleShot(10, lambda: self.history_scroll_area.verticalScrollBar().setValue(self.history_scroll_area.verticalScrollBar().maximum()))
 
-    def add_system_message(self, message: str, show_rating_buttons: bool = False):
-        """Muestra un mensaje del sistema en la barra de estado.
+    def add_system_message(self, message, show_rating_buttons=False):
+        """Añade un mensaje del sistema al historial.
 
         Args:
             message (str): El contenido del mensaje del sistema.
-            show_rating_buttons (bool): Ignorado en esta implementación.
+            show_rating_buttons (bool): Si se deben mostrar los botones de rating para este mensaje.
         """
-        print(f"[SYSTEM_STATUS] {message}")
-        self.statusBar().showMessage(message, 7000) # Muestra el mensaje por 7 segundos
-    def clear_history(self):
-            """Limpia el historial de chat de la UI, eliminando todos los widgets."""
-            while self.history_layout.count():
-                child = self.history_layout.takeAt(0)
-                if child.widget():
-                    child.widget().deleteLater() 
+        system_message_obj = {"role": "system", "content": message}
+        self.add_to_history(system_message_obj, show_rating_buttons=show_rating_buttons)
+
     def send_message(self):
         """Envía el mensaje del usuario al motor de chat."""
         user_message = self.input_text.toPlainText().strip()
@@ -1062,14 +800,13 @@ Aquí tienes una guía rápida para empezar:
     def run_agent_worker(self, user_message: str):
         """Inicia el worker para el modo agente."""
         # Importaciones locales para evitar dependencias circulares a nivel de módulo
-        from app.agent import Agent
-        from app.llm_providers import LlamaCppProvider, OllamaProvider
+        from MARTIN_LLM.app.agent import Agent
 
-        if not isinstance(self.chat_engine.provider, (LlamaCppProvider, OllamaProvider)):
-            self.handle_error("Por favor, selecciona un modelo LLM real antes de usar el modo Agente.")
+        if not isinstance(self.chat_engine.provider, BaseLLMProvider):
+            self.handle_error("El proveedor de modelo actual no es compatible con el modo agente.")
             return
 
-        self.add_system_message("MODO AGENTE INICIADO. OBJETIVO: " + user_message)
+        self.add_system_message("MODO AGENTE INICIADO. OBJETIVO: " + user_message, show_rating_buttons=False)
         self.process_log_window.show() # Mostrar la ventana de log
         self.process_log_window.append_log(f"MODO AGENTE INICIADO. OBJETIVO: {user_message}")
         
@@ -1092,18 +829,16 @@ Aquí tienes una guía rápida para empezar:
         self.worker_thread.finished.connect(self.worker_thread.deleteLater)
 
         self.worker_thread.start()
-
     def run_reasoner_worker(self, user_objective: str):
         """Inicia el worker para el modo razonador (Plan-and-Execute)."""
         # Importaciones locales para evitar dependencias circulares a nivel de módulo
         from MARTIN_LLM.app.reasoner import Reasoner
-        from app.llm_providers import LlamaCppProvider, OllamaProvider
 
-        if not isinstance(self.chat_engine.provider, (LlamaCppProvider, OllamaProvider)):
-            self.handle_error("Por favor, selecciona un modelo LLM real antes de usar el modo Razonador.")
+        if not isinstance(self.chat_engine.provider, BaseLLMProvider):
+            self.handle_error("El proveedor de modelo actual no es compatible con el modo razonador.")
             return
 
-        self.add_system_message("MODO RAZONADOR INICIADO. OBJETIVO: " + user_objective)
+        self.add_system_message("MODO RAZONADOR INICIADO. OBJETIVO: " + user_objective, show_rating_buttons=False)
         self.process_log_window.show() # Mostrar la ventana de log
         self.process_log_window.append_log(f"MODO RAZONADOR INICIADO. OBJETIVO: {user_objective}")
         
@@ -1145,8 +880,11 @@ Aquí tienes una guía rápida para empezar:
         """Maneja la respuesta final del agente."""
         self.add_system_message("AGENTE HA FINALIZADO LA TAREA.", show_rating_buttons=False)
         self.process_log_window.append_log("AGENTE HA FINALIZADO LA TAREA.")
-        # The handle_response method will be in charge of adding the response to the history
-        self.handle_response(response)
+        # Añadir la respuesta final del agente al historial lógico
+        assistant_message = {"role": "assistant", "content": response}
+        if self.chat_engine:
+            self.chat_engine.history.append(assistant_message)
+        self.handle_response(assistant_message) # Reutiliza el manejador de respuesta normal
     def handle_response(self, response_content):
         """Maneja la respuesta exitosa del worker."""
         print("[UI] Manejando respuesta del worker.")
@@ -1161,6 +899,9 @@ Aquí tienes una guía rápida para empezar:
         self.save_conversation(is_autosave=True)
         self.send_button.setEnabled(True)
         self.input_text.setFocus()
+        # Ocultar la ventana de log si no estamos en modo agente/razonador
+        if not self.agent_mode and not self.reasoner_mode:
+            self.process_log_window.hide()
     def handle_error(self, error_msg):
         """Maneja un error del worker."""
         print(f"[UI] Manejando error del worker: {error_msg}")
@@ -1180,8 +921,8 @@ Aquí tienes una guía rápida para empezar:
         # Limpiar la UI y reiniciar el motor de chat para una nueva conversación
         self.clear_history()
         self.chat_engine.start_new()
-        self.add_system_message("NUEVA CONVERSACIÓN INICIADA.")
-        self.add_to_history({"role": "assistant", "content": "Sistema listo para recibir comandos."})
+        self.add_system_message("NUEVA CONVERSACIÓN INICIADA.", show_rating_buttons=False)
+        self.add_to_history({"role": "assistant", "content": "Sistema listo para recibir comandos."}, show_rating_buttons=False)
         self.process_log_window.clear_log() # Limpiar el log al iniciar nueva conversación
         self.process_log_window.hide() # Ocultar la ventana de log
 
@@ -1257,14 +998,14 @@ Aquí tienes una guía rápida para empezar:
 
     def create_rating_buttons(self, layout, role, message):
         """Crea y configura los botones de calificación."""
-        thumbs_up_button = QPushButton(qta.icon("fa5s.thumbs-up", color="white"), "")
+        thumbs_up_button = QPushButton(qta.icon("fa5s.thumbs-up", color="#68d391"), "")
         thumbs_up_button.setToolTip("Respuesta útil")
         thumbs_up_button.setFixedSize(30, 30)
         thumbs_up_button.setStyleSheet("background: transparent; border: none;")
         thumbs_up_button.setCursor(Qt.CursorShape.PointingHandCursor)
         thumbs_up_button.clicked.connect(lambda ch, r=role, m=message: self.rate_message(r, m, "up"))
 
-        thumbs_down_button = QPushButton(qta.icon("fa5s.thumbs-down", color="white"), "")
+        thumbs_down_button = QPushButton(qta.icon("fa5s.thumbs-down", color="#f56565"), "")
         thumbs_down_button.setToolTip("Respuesta no útil")
         thumbs_down_button.setFixedSize(30, 30)
         thumbs_down_button.setStyleSheet("background: transparent; border: none;")
@@ -1340,11 +1081,11 @@ Aquí tienes una guía rápida para empezar:
                     f.write(f"Conversación Exportada\n======================\n")
                     f.write(f"Modelo: {self.chat_engine.provider.model_identifier}\n")
                     f.write(f"Fecha de exportación: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n\n")
-                    f.write(f"--- SYSTEM PROMPT ---\n{self.chat_engine.system_prompt}\n\n--- HISTORIAL ---")
+                    f.write(f"--- SYSTEM PROMPT ---\n{self.chat_engine.system_prompt}\n\n--- HISTORIAL ---\n")
                     for message in self.chat_engine.history:
                         f.write(f"[{message.get("role", "unknown").upper()}]\n{message.get("content", "")}\n\n---\n")
             
-            self.add_system_message(f"Conversación exportada a: {Path(file_path).name}")
+            self.add_system_message(f"CONVERSACIÓN EXPORTADA A: {Path(file_path).name}", show_rating_buttons=False)
             QMessageBox.information(self, "Exportación Exitosa", f"La conversación ha sido exportada a\n{file_path}")
         except Exception as e:
             QMessageBox.critical(self, "Error de Exportación", f"No se pudo exportar la conversación:\n{e}")
@@ -1371,7 +1112,7 @@ Aquí tienes una guía rápida para empezar:
             QMessageBox.critical(self, "Error", f"No se pudieron cargar las conversaciones: {e}")
     def load_selected_conversation(self, conv_id):
         """Carga los datos de una conversación específica en la UI."""
-        self.add_system_message(f"Cargando conversación ID: {conv_id}...")
+        self.add_system_message(f"CARGANDO CONVERSACIÓN ID: {conv_id}...", show_rating_buttons=False)
         conv_data = self.user_service.get_conversation(self.user_id, conv_id)
         if not conv_data:
             QMessageBox.critical(self, "Error", "No se pudo cargar la conversación.")
@@ -1396,7 +1137,9 @@ Aquí tienes una guía rápida para empezar:
 
             self.chat_engine.provider = provider
             self.selected_model_name = model_identifier
-            self.update_installed_models_combo_selection()
+            self.selected_model_name = model_identifier # <-- AÑADIDO para consistencia
+            self.model_label.setText(f"> MODELO: [{display_name.upper()}] - ACTIVO")
+
             # 2. Cargar los datos de la conversación en el motor de chat usando el método dedicado.
             history = conv_data.get("messages", [])
             system_prompt = conv_data.get("system_prompt", SYSTEM_PROMPT)
@@ -1409,7 +1152,7 @@ Aquí tienes una guía rápida para empezar:
 
             # 3. Actualizar la interfaz de usuario.
             self.clear_history()
-            self.add_system_message(f"Conversación cargada: {conv_data.get('title', 'Sin título')}")
+            self.add_system_message(f"CONVERSACIÓN CARGADA: {conv_data.get("title", "Sin título")}", show_rating_buttons=False)
             self.repopulate_history_ui()
             self.populate_recent_conversations()
         except Exception as e:
@@ -1428,9 +1171,9 @@ Aquí tienes una guía rápida para empezar:
         if file_path:
             try:
                 text = extract_text(file_path)
-                self.add_system_message(f"ARCHIVO CARGADO: {file_path}")
+                self.add_system_message(f"ARCHIVO CARGADO: {file_path}", show_rating_buttons=False)
                 current_prompt = self.input_text.toPlainText()
-                new_prompt = f"Basado en el siguiente contenido del archivo \'{Path(file_path).name}\' :\n\n---\n{text}\n---\n\n{current_prompt}"
+                new_prompt = f"Basado en el siguiente contenido del archivo \'{Path(file_path).name}\':\n\n---\n{text}\n---\n\n{current_prompt}"
                 self.input_text.setPlainText(new_prompt)
             except Exception as e:
                 QMessageBox.critical(self, "Error", 
@@ -1438,7 +1181,7 @@ Aquí tienes una guía rápida para empezar:
     def repopulate_history_ui(self):
         """Vuelve a dibujar el historial en la UI a partir de self.chat_engine.history."""
         for msg in self.chat_engine.history:
-            self.add_to_history(msg, show_rating_buttons=True)
+            self.add_to_history(msg)
     def start_cleanup_process(self, on_finish_callback):
         """Muestra el diálogo de cierre e inicia el worker de limpieza."""
         if self.cleanup_in_progress:
@@ -1491,115 +1234,31 @@ Aquí tienes una guía rápida para empezar:
         # Es la primera petición de cierre, iniciar el proceso de limpieza.
         event.ignore()
         self.start_cleanup_process(self.do_quit)
-    def on_mode_changed(self, index):
+    def on_mode_changed(self, button, checked):
         """Maneja el cambio de modo de operación (Chat, Agente, Razonador)."""
-        
-        mode = self.mode_combo.itemData(index)
+        if not checked:
+            return # Solo actuar sobre el botón que fue seleccionado
 
-        # Importaciones locales para evitar dependencias circulares
-        from app.agent import Agent
-        from app.reasoner import Reasoner
-        from app.chat_engine import SYSTEM_PROMPT as CHAT_SYSTEM_PROMPT
-        
-        # Es crucial que el chat_engine y su provider existan.
-        if not self.chat_engine or not self.chat_engine.provider:
-            self.add_system_message("ERROR: No hay un modelo cargado. No se puede cambiar de modo.")
-            # Forzar la vuelta al modo Chat si no hay modelo
-            self.mode_combo.setCurrentIndex(0)
-            return
-
-        if mode == "chat":
+        if button is self.chat_mode_radio:
             self.agent_mode = False
             self.reasoner_mode = False
-            # Restaurar el system prompt por defecto del modo chat
-            self.chat_engine.system_prompt = CHAT_SYSTEM_PROMPT
-            self.system_prompt_edit.setPlainText(CHAT_SYSTEM_PROMPT)
-            self.add_system_message("MODO CHAT ACTIVADO.")
+            self.add_system_message("MODO CHAT ACTIVADO.", show_rating_buttons=False)
             self.input_text.setPlaceholderText("Escribe tu prompt aquí...")
-
-        elif mode == "agent":
+            self.process_log_window.hide() # Ocultar la ventana de log en modo chat
+        elif button is self.agent_mode_radio:
             self.agent_mode = True
             self.reasoner_mode = False
-            # Crear una instancia temporal del Agente solo para obtener su system prompt
-            # ya que este se construye dinámicamente con las herramientas.
-            try:
-                agent_for_prompt = Agent(self.chat_engine.provider)
-                agent_prompt = agent_for_prompt.system_prompt
-                self.chat_engine.system_prompt = agent_prompt
-                self.system_prompt_edit.setPlainText(agent_prompt)
-                self.add_system_message("MODO AGENTE ACTIVADO.")
-                self.input_text.setPlaceholderText("Describe el objetivo para el agente...")
-            except Exception as e:
-                self.add_system_message(f"Error al activar modo Agente: {e}")
-                self.mode_combo.setCurrentIndex(0) # Revertir a modo chat
-
-        elif mode == "reasoner":
+            self.chat_engine.system_prompt = AGENT_SYSTEM_PROMPT_TEMPLATE
+            self.add_system_message("MODO AGENTE ACTIVADO. Los prompts se tratarán como objetivos para el agente.", show_rating_buttons=False)
+            self.input_text.setPlaceholderText("Escribe tu objetivo para el agente aquí...")
+            self.process_log_window.show() # Mostrar la ventana de log en modo agente
+        elif button is self.reasoner_mode_radio:
             self.agent_mode = False
             self.reasoner_mode = True
-            # Similar al agente, creamos una instancia para obtener el prompt.
-            try:
-                reasoner_for_prompt = Reasoner(self.chat_engine.provider)
-                reasoner_prompt = reasoner_for_prompt.system_prompt
-                self.chat_engine.system_prompt = reasoner_prompt
-                self.system_prompt_edit.setPlainText(reasoner_prompt)
-                self.add_system_message("MODO RAZONADOR ACTIVADO.")
-                self.input_text.setPlaceholderText("Describe el objetivo complejo para planificar...")
-            except Exception as e:
-                self.add_system_message(f"Error al activar modo Razonador: {e}")
-                self.mode_combo.setCurrentIndex(0) # Revertir a modo chat
-
-    def populate_installed_models_combo(self):
-        """Carga los modelos locales (GGUF y Ollama) en el QComboBox."""
-        self.installed_models_combo.blockSignals(True)
-        self.installed_models_combo.clear()
-
-        all_local_models = []
-        # 1. Get GGUF models from 'models' directory
-        try:
-            models_dir = Path("models")
-            if models_dir.exists():
-                for f in models_dir.iterdir():
-                    if f.is_file() and f.suffix.lower() == ".gguf":
-                        all_local_models.append({'identifier': str(f.resolve()), 'display': f.name})
-        except Exception as e:
-            print(f"Error al leer modelos GGUF locales: {e}")
-
-        # 2. Get Ollama installed models
-        try:
-            local_ollama_models = self.ollama_manager.get_local_models()
-            for model_data in local_ollama_models:
-                all_local_models.append({'identifier': model_data['name'], 'display': model_data['name']})
-        except Exception as e:
-            print(f"Error al obtener modelos de Ollama: {e}")
-
-        # Populate the combo box
-        if not all_local_models:
-            self.installed_models_combo.addItem(self.installed_models_combo.no_models_text)
-            self.installed_models_combo.setEnabled(True) # Habilitado para que el clic funcione
-        else:
-            self.installed_models_combo.setEnabled(True)
-            self.installed_models_combo.addItem("[Seleccionar un modelo]", userData=None)
-            
-            sorted_models = sorted(all_local_models, key=lambda x: x['display'])
-            for model in sorted_models:
-                self.installed_models_combo.addItem(model['display'], userData=model['identifier'])
-        
-        self.update_installed_models_combo_selection()
-        self.installed_models_combo.blockSignals(False)
-
-    def on_installed_model_selected(self, index):
-        """Maneja la selección de un modelo desde el QComboBox."""
-        if index <= 0: # Ignorar el placeholder
-            return
-        model_identifier = self.installed_models_combo.itemData(index)
-        if model_identifier and self.selected_model_name != model_identifier:
-            self.on_model_selected(model_identifier)
-
-    def update_installed_models_combo_selection(self):
-        """Actualiza la selección del QComboBox para que coincida con el modelo activo."""
-        if self.selected_model_name:
-            for i in range(self.installed_models_combo.count()):
-                if self.installed_models_combo.itemData(i) == self.selected_model_name:
-                    self.installed_models_combo.setCurrentIndex(i)
-                    return
-        self.installed_models_combo.setCurrentIndex(0)
+            self.add_system_message("MODO RAZONADOR ACTIVADO. Los prompts se tratarán como objetivos complejos a planificar.", show_rating_buttons=False)
+            self.input_text.setPlaceholderText("Escribe tu objetivo complejo aquí...")
+            self.process_log_window.show() # Mostrar la ventana de log en modo razonador
+    def toggle_left_panel(self):
+        """Muestra u oculta el panel de conversaciones recientes."""
+        if hasattr(self, "left_panel"):
+            self.left_panel.setVisible(not self.left_panel.isVisible())

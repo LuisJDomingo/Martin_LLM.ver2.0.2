@@ -275,37 +275,11 @@ def initialize_local_provider(parent=None, app_icon=None):
 def initialize_provider(parent=None, app_icon=None):
     """
     Determina el mejor proveedor disponible de forma inteligente.
-    1. Intenta usar Ollama SI está en ejecución Y tiene modelos.
-    2. Si no, recurre al modelo local GGUF.
+    Esta versión modificada permite que la aplicación inicie sin un modelo cargado.
     """
-    print("\n--- CONFIGURACIÓN DEL PROVEEDOR LLM ---")
-    
-    # --- Lógica de Despacho (Prioridad Local) --- 
-    # 1. Intentar inicializar el proveedor local GGUF primero.
-    print("[main_qt.py] Decisión: Priorizando proveedor local (GGUF).")
-    provider, error_message = initialize_local_provider(parent, app_icon)
-    if provider:
-        print("[main_qt.py] Proveedor local GGUF cargado exitosamente.")
-        return provider, None
-    
-    print(f"[main_qt.py] Falló la carga del proveedor local: {error_message}. Intentando fallback a Ollama.")
-
-    # 2. Si el proveedor local falla, intentar usar Ollama como fallback.
-    from app.model_loader import verify_ollama_connection # Importación local para claridad
-    from app.ollama_manager import OllamaManager
-
-    ollama_ok, _ = verify_ollama_connection()
-    if ollama_ok:
-        ollama_manager = OllamaManager()
-        if ollama_manager.get_local_models():
-            print("[main_qt.py] Decisión: Ollama es viable. Intentando inicializar.")
-            provider_ollama, error_ollama = initialize_ollama_provider()
-            if provider_ollama:
-                return provider_ollama, None
-    
-    # 3. Si ambos fallan, devolver el error del proveedor local.
-    print("[main_qt.py] Fallback a Ollama no fue posible. No se pudo inicializar ningún proveedor.")
-    return None, error_message
+    print("\n--- CONFIGURACIÓN DEL PROVEVEDOR LLM ---")
+    print("[main_qt.py] Iniciando la aplicación sin un modelo LLM cargado por defecto.")
+    return None, "No se cargó ningún modelo LLM al inicio. Por favor, selecciona uno manualmente."
 
 def show_critical_error(app_icon, title, text, informative_text):
     """Muestra un cuadro de diálogo de error crítico y sale de la aplicación."""
@@ -349,7 +323,9 @@ def main():
         print("[main_qt.py][main()] Icono de la aplicación cargado.")
     else:
         print(f"ADVERTENCIA: No se encontró el icono de la aplicación en {icon_path}")
-
+    
+    from ui.qt_styles import apply_additional_login_styles
+    apply_additional_login_styles(app)
     from ui.qt_styles import apply_futuristic_theme
     apply_futuristic_theme(app)
 
@@ -359,12 +335,22 @@ def main():
     provider, error_message = initialize_provider(parent=None, app_icon=app_icon)
 
     if not provider:
-        show_critical_error(
-            app_icon, "Error Crítico al Iniciar",
-            "No se pudo cargar ningún modelo de lenguaje (LLM).",
-            error_message or "Ocurrió un error desconocido."
-        )
-        return 1
+        # Si no hay proveedor al inicio, se inicializa el chat_engine con un proveedor nulo
+        # y se muestra un mensaje informativo al usuario.
+        print("[main_qt.py][main()] No se cargó ningún proveedor al inicio. La aplicación iniciará sin un modelo activo.")
+        
+        # Crear un proveedor dummy/nulo para que la aplicación pueda iniciar.
+        class NullLLMProvider(BaseLLMProvider):
+            def __init__(self):
+                super().__init__(model_identifier="Ninguno")
+            def query(self, messages: list, format: str = None) -> str:
+                return "Por favor, selecciona un modelo LLM para comenzar a chatear."
+            def shutdown(self):
+                pass
+        provider = NullLLMProvider()
+        QMessageBox.information(None, "Inicio de la Aplicación",
+                                "La aplicación se ha iniciado sin un modelo LLM cargado. "
+                                "Por favor, ve a \'Modelo\' en la barra superior para seleccionar o descargar uno.")
 
     # 2. Si el proveedor es válido, crear el controlador y ejecutar la aplicación.
     controller = ApplicationController(provider=provider, app_icon=app_icon)
