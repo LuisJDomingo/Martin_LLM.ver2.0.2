@@ -21,9 +21,9 @@ def get_futuristic_stylesheet():
     }
     
     /* Ventana principal */
-    QMainWindow {
+    QMainWindow, QDialog {
         background-color: #1a1d23; /* Fondo para el área fuera del mainFrame */
-        border: 1px solid #4a90e2; /* Borde azul para la ventana activa */
+        border: 1px solid #ffffff; /* Borde blanco suave */
     }
     
     /* Frames y contenedores */

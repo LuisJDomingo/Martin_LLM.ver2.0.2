@@ -84,16 +84,20 @@ class BaseLLMProvider(ABC):
 class LlamaCppProvider(BaseLLMProvider):
     """
     Proveedor para modelos GGUF locales usando llama-cpp-python.
-    Versión con carga directa y robusta.
+    Versión con carga directa y robusta con detección automática de hardware.
     """
-    def __init__(self, model_path: str, **kwargs):
+    def __init__(self, model_path: str, hardware_config=None, **kwargs):
         # --- NO CAMBIAR ESTA PARTE ---
         super().__init__(model_identifier=os.path.basename(model_path))
         self.model_path = model_path
         self.llm = None
+        self.hardware_config = hardware_config or self._load_hardware_config()
+        
         print(f"{Color.BLUE}-------------------------------------------------------------------------{Color.RESET}")
         print(f"{Color.BLUE}[LlamaCppProvider] Iniciando en modo de CARGA DIRECTA.{Color.RESET}")
         print(f"{Color.BLUE}[LlamaCppProvider] Ruta del modelo: {self.model_path}{Color.RESET}")
+        if self.hardware_config:
+            print(f"{Color.GREEN}[LlamaCppProvider] Configuración: {self.hardware_config.get('description', 'N/A')}{Color.RESET}")
         print(f"{Color.BLUE}-------------------------------------------------------------------------{Color.RESET}")        
 
         if not os.path.exists(self.model_path):
@@ -117,13 +121,19 @@ class LlamaCppProvider(BaseLLMProvider):
                 # Importamos Llama aquí para evitar conflictos de carga temprana.
                 from llama_cpp import Llama
                 
-                # Creamos la instancia con los parámetros más seguros y compatibles,
-                # replicando la configuración del script de prueba que funcionó.
+                # Determinar configuración de GPU basada en hardware detectado
+                n_gpu_layers = self._get_gpu_layers()
+                n_threads = self._get_threads()
+                
+                print(f"{Color.BLUE}[LlamaCppProvider] GPU Layers: {n_gpu_layers}, Threads: {n_threads}{Color.RESET}")
+                
+                # Creamos la instancia con configuración dinámica basada en hardware
                 self.llm = Llama(
                     model_path=self.model_path,
-                    n_gpu_layers=0,      # Forzar CPU para máxima compatibilidad
-                    verbose=True,        # Máxima información de salida
-                    n_ctx=2048         # Usamos el contexto que necesitas para tu app
+                    n_gpu_layers=n_gpu_layers,
+                    verbose=True,
+                    n_ctx=2048,
+                    n_threads=n_threads if n_gpu_layers == 0 else None  # Solo usar threads en CPU
                 )
             print(f"{Color.GREEN}[LlamaCppProvider] Modelo cargado exitosamente en memoria.{Color.RESET}")
 
@@ -166,6 +176,41 @@ class LlamaCppProvider(BaseLLMProvider):
         except Exception as e:
             print(f"{Color.RED}[LlamaCppProvider] Error durante la generación de la respuesta: {e}{Color.RESET}")
             return f"Error al procesar la solicitud del modelo: {e}"
+
+    def _load_hardware_config(self):
+        """Carga la configuración de hardware guardada o usa valores por defecto."""
+        import json
+        
+        config_file = 'hardware_config.json'
+        try:
+            if os.path.exists(config_file):
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                return data.get('selected_config', {})
+        except Exception as e:
+            print(f"{Color.YELLOW}[LlamaCppProvider] No se pudo cargar configuración de hardware: {e}{Color.RESET}")
+        
+        # Configuración por defecto si no hay archivo
+        return {
+            'type': 'default_cpu',
+            'n_gpu_layers': 0,
+            'n_threads': os.cpu_count(),
+            'requires_cuda_build': False
+        }
+    
+    def _get_gpu_layers(self):
+        """Determina cuántas capas usar en GPU basado en la configuración."""
+        if not self.hardware_config:
+            return 0
+        
+        return self.hardware_config.get('n_gpu_layers', 0)
+    
+    def _get_threads(self):
+        """Determina cuántos threads usar para CPU."""
+        if not self.hardware_config:
+            return os.cpu_count()
+        
+        return self.hardware_config.get('n_threads', os.cpu_count())
 
     def shutdown(self):
         """Libera los recursos del modelo."""

@@ -2,7 +2,7 @@
 # ui/custom_widgets.py
 
 from PyQt6.QtWidgets import QFrame, QMainWindow, QDialog, QHBoxLayout, QLabel, QPushButton, QWidget, QVBoxLayout
-from PyQt6.QtCore import Qt, QPoint, QPropertyAnimation, QEasingCurve
+from PyQt6.QtCore import Qt, QPoint
 import qtawesome as qta
 
 class CustomTitleBar(QFrame):
@@ -55,23 +55,6 @@ class CustomTitleBar(QFrame):
         if event.button() == Qt.MouseButton.LeftButton and hasattr(self.parent_window, 'toggle_maximize'):
             self.parent_window.toggle_maximize()
             event.accept()
-
-class FadeInMixin:
-    """Mixin para añadir una animación de fade-in a cualquier ventana."""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._fade_in_animation = None
-        self.setWindowOpacity(0.0)
-
-    def showEvent(self, event):
-        super().showEvent(event)
-        if self.windowOpacity() == 0.0:
-            self._fade_in_animation = QPropertyAnimation(self, b"windowOpacity")
-            self._fade_in_animation.setDuration(300)
-            self._fade_in_animation.setStartValue(0.0)
-            self._fade_in_animation.setEndValue(1.0)
-            self._fade_in_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
-            self._fade_in_animation.start()
 
 class FramelessWindowMixin:
     """

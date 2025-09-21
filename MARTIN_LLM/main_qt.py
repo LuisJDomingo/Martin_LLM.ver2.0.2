@@ -3,376 +3,213 @@
 
 import sys
 import os
-import subprocess
-from pathlib import Path
-from PyQt6.QtWidgets import QApplication, QMessageBox, QFileDialog, QWidget
-from PyQt6.QtGui import QIcon
+import uuid
 from dotenv import load_dotenv
 
-# --- Importación de la configuración centralizada ---
-import config # Usamos la configuración establecida por run.py
+from PyQt6.QtWidgets import QApplication
 
-# ANSI escape codes for colors
-class Color:
-    BLUE = '\033[94m'
-    RESET = '\033[0m'
-    YELLOW = '\033[93m'
-
-def resource_path(relative_path):
-    """
-    Obtiene la ruta absoluta a un recurso.
-    Esta versión está CORREGIDA para funcionar con cx_Freeze.
-    """
-    if getattr(sys, 'frozen', False):
-        base_path = os.path.dirname(sys.executable)
-    else:
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    
-    return Path(os.path.join(base_path, relative_path))
-# Cargar variables de entorno desde un archivo .env
-# ¡Esto debe hacerse ANTES de importar cualquier módulo de la app que las necesite!
-print("\n--- INICIALIZACIÓN DE ENTORNO ---")
-import os
-from datetime import datetime
-
-def load_environment():
-    """Carga las variables de entorno desde el archivo .env."""
-    dotenv_path = resource_path('.env')
-    print(f"Buscando archivo de configuración en: {dotenv_path.absolute()}")
-    if dotenv_path.exists():
-        print(f"{Color.BLUE}[main_qt.py] Archivo .env encontrado. Cargando variables...{Color.RESET}")
-        load_dotenv(dotenv_path=dotenv_path)
-        print(f"{Color.BLUE}[main_qt.py] Variables de entorno cargadas.{Color.RESET}")
-    else:
-        print(f"{Color.YELLOW}[AVISO] No se encontró el archivo .env en la ruta esperada.{Color.RESET}")
-        print("La aplicación usará configuraciones por defecto (ej: base de datos local).")
-
-# --- CARGA TEMPRANA DE VARIABLES DE ENTORNO ---
-load_environment()
-
-# --- IMPORTACIONES POST-ENTORNO ---
-# Ahora que las variables están cargadas, podemos importar nuestros módulos de forma segura.
-from app.chat_engine import ChatEngine
-from app.llm_providers import BaseLLMProvider, LlamaCppProvider, OllamaProvider
-from app.services.login_service import UserService
+# Importar los componentes de la UI
 from ui.login_widget import LoginWidget
-from ui.registration_widget import RegistrationWidget
 from ui.chat_interface import ChatInterface
-from ui.qt_styles import apply_futuristic_theme
+from ui.registration_widget import RegistrationWidget
+from ui.loading_dialog import LoadingDialog
+from ui.qt_styles import apply_futuristic_theme, apply_additional_login_styles
 
-class Logger:
-    def __init__(self, log_file_path):
-        self.terminal = sys.stdout
-        self.log = open(log_file_path, "w", encoding="utf-8")
+# Importar los servicios y la lógica de la aplicación
+from app.services.login_service import UserService
+from app.chat_engine import ChatEngine
 
-    def write(self, message):
-        self.terminal.write(message)
-        self.log.write(message)
+class MainController:
+    """
+    Controlador principal que gestiona el flujo de la aplicación,
+    cambiando entre la ventana de login y la interfaz de chat.
+    """
+    def __init__(self):
+        self.app = QApplication(sys.argv)
+        apply_futuristic_theme(self.app)
 
-    def flush(self):
-        self.terminal.flush()
-        self.log.flush()
+        # Inicializar detector de hardware al inicio
+        self._initialize_hardware_detection()
 
-    def close(self):
-        self.log.close()
+        # Inicializar servicios
+        self.user_service = UserService()
+        # El ChatEngine se inicializa sin un proveedor.
+        # El proveedor se asignará en la ChatInterface cuando el usuario seleccione un modelo.
+        self.chat_engine = ChatEngine(provider=None)
 
-# Crear ruta al archivo log (con fecha/hora si quieres)
-def setup_logging():
-    now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    log_dir = os.path.join(os.getcwd(), "logs")
-    os.makedirs(log_dir, exist_ok=True)
+        # Inicializar widgets (se crearán cuando se necesiten)
+        self.login_widget = None
+        self.chat_interface = None
+        self.registration_widget = None
+        self.loading_dialog = None
+        self.current_user_id = None
+        self.current_username = None
 
-    log_path = os.path.join(log_dir, f"martin_debug_{now}.log")
-    logger = Logger(log_path)
+    def _initialize_hardware_detection(self):
+        """Inicializa la detección de hardware al inicio de la aplicación."""
+        try:
+            from hardware_detector import HardwareDetector
+            import os
+            
+            # Verificar si ya existe configuración
+            if os.path.exists('hardware_config.json'):
+                print("[MainController] Configuración de hardware encontrada.")
+                return
+            
+            print("[MainController] Primera ejecución - detectando hardware...")
+            
+            # Realizar detección automática
+            detector = HardwareDetector()
+            
+            # Mostrar configurador gráfico si es la primera vez
+            self._show_hardware_configurator(detector)
+            
+        except Exception as e:
+            print(f"[MainController] Error en detección de hardware: {e}")
+            # Continuar con la aplicación normal si falla la detección
+    
+    def _show_hardware_configurator(self, detector):
+        """Muestra el configurador de hardware si es necesario."""
+        try:
+            from PyQt6.QtWidgets import QMessageBox, QPushButton
+            from hardware_config_gui_v2 import HardwareConfigGUI
+            
+            # Preguntar al usuario si quiere configurar hardware
+            msg_box = QMessageBox()
+            msg_box.setWindowTitle("MARTIN LLM - Configuración Inicial")
+            msg_box.setText("Esta es la primera ejecución de MARTIN LLM.\n\n"
+                           "¿Desea configurar el hardware para obtener el máximo rendimiento?")
+            msg_box.setInformativeText("La detección automática optimizará la aplicación para su sistema.")
+            
+            # Botones personalizados
+            config_btn = QPushButton("Configurar Hardware")
+            skip_btn = QPushButton("Usar Configuración por Defecto")
+            
+            msg_box.addButton(config_btn, QMessageBox.ButtonRole.AcceptRole)
+            msg_box.addButton(skip_btn, QMessageBox.ButtonRole.RejectRole)
+            
+            # Aplicar tema
+            msg_box.setStyleSheet(self.app.styleSheet())
+            
+            result = msg_box.exec()
+            
+            if msg_box.clickedButton() == config_btn:
+                # Mostrar configurador
+                config_window = HardwareConfigGUI()
+                config_window.show()  # No modal para evitar problemas
+            else:
+                # Crear configuración por defecto
+                self._create_default_hardware_config(detector)
+                
+        except ImportError:
+            # Si no se puede importar la GUI, crear configuración por defecto
+            print("[MainController] GUI no disponible, usando configuración por defecto.")
+            self._create_default_hardware_config(detector)
+        except Exception as e:
+            print(f"[MainController] Error mostrando configurador: {e}")
+            self._create_default_hardware_config(detector)
+    
+    def _create_default_hardware_config(self, detector):
+        """Crea una configuración por defecto basada en la detección automática."""
+        try:
+            import json
+            import os
+            
+            # Usar la configuración recomendada por el detector
+            config_data = {
+                'hardware_info': detector.system_info,
+                'selected_config': detector.recommended_config,
+                'timestamp': __import__('datetime').datetime.now().isoformat(),
+                'auto_generated': True
+            }
+            
+            with open('hardware_config.json', 'w', encoding='utf-8') as f:
+                json.dump(config_data, f, indent=2, ensure_ascii=False)
+            
+            print(f"[MainController] Configuración automática creada: {detector.recommended_config.get('description', 'N/A')}")
+            
+        except Exception as e:
+            print(f"[MainController] Error creando configuración por defecto: {e}")
 
-    sys.stdout = logger
-    sys.stderr = logger  # También errores no capturados
-    return logger
-
-class ApplicationController:
-    def __init__(self, provider: BaseLLMProvider, app_icon=None):
-        self.app_icon = app_icon
-        self.login_window = None
-        self.registration_window = None
-        self.chat_window = None
-        
-        # --- 1. INICIALIZACIÓN DEL BACKEND ---
-        # Se preparan los componentes principales una sola vez al inicio.
-        # El proveedor ahora se recibe como argumento, no se crea aquí.
-        self.provider = provider
-        self.user_service = UserService() # <-- Servicio centralizado
-        # Se asume que el proveedor es válido, la validación se hace antes de crear el controlador.
-        self.chat_engine = ChatEngine(provider=self.provider)
-
-    def shutdown(self):
-        """Limpia los recursos del controlador, como el proveedor inicial."""
-        print("[ApplicationController] Iniciando apagado...")
-        if self.provider:
-            self.provider.shutdown()
-            self.provider = None
+    def run(self):
+        """Inicia la aplicación mostrando la ventana de login."""
+        self.show_login()
+        sys.exit(self.app.exec())
 
     def show_login(self):
-        if self.chat_window:
-            # The cleanup process in ChatInterface handles the closing dialog.
-            # We just need to ensure the window is hidden and the reference is cleared.
-            self.chat_window.hide()
-            self.chat_window = None
-        if self.registration_window:
-            self.registration_window.close()
-            self.registration_window = None
+        """Crea y muestra la ventana de login."""
+        self.login_widget = LoginWidget(self.user_service)
+        apply_additional_login_styles(self.app) # Aplicar estilos adicionales para login
+        
+        # Conectar señales del login widget
+        self.login_widget.login_success.connect(self.handle_login_success)
+        self.login_widget.registration_requested.connect(self.show_registration)
+        
+        
+        
+        self.login_widget.show()
 
-        # Pasamos el servicio de usuario al widget de login
-        self.login_window = LoginWidget(user_service=self.user_service)
-        if self.app_icon:
-            self.login_window.setWindowIcon(self.app_icon)
-        self.login_window.login_success.connect(self.show_chat)
-        self.login_window.registration_requested.connect(self.show_registration)
-        self.login_window.show()
+    def handle_login_success(self, user_id, username):
+        """Maneja un inicio de sesión exitoso."""
+        print(f"[main_qt.py][MainController][handle_login_success] Login exitoso para: {username} (ID: {user_id})")
+        self.current_user_id = user_id
+        self.current_username = username
+        
+        self.login_widget.close()
+        
+        self.loading_dialog = LoadingDialog()
+        self.loading_dialog.loading_complete.connect(self._on_loading_complete)
+        self.loading_dialog.start_loading()
+        self.loading_dialog.show()
+
+    def _on_loading_complete(self):
+        """Se llama cuando el diálogo de carga ha terminado."""
+        self.show_chat_interface(self.current_user_id, self.current_username)
+
+    def show_chat_interface(self, user_id, username):
+        print(f"[main_qt.py][MainController][show_chat_interface] Mostrando la interfaz de chat para: {username} (ID: {user_id})")
+        """Crea y muestra la interfaz de chat."""
+        self.chat_interface = ChatInterface(user_id, username, self.chat_engine, self.user_service)
+        self.chat_interface.logout_requested.connect(self.handle_logout)
+        self.chat_interface.show()
 
     def show_registration(self):
-        """Cierra la ventana de login y muestra la de registro."""
-        if self.login_window:
-            self.login_window.close()
-            self.login_window = None
-
-        self.registration_window = RegistrationWidget(user_service=self.user_service)
-        if self.app_icon:
-            self.registration_window.setWindowIcon(self.app_icon)
-
-        # Conectar señales para volver al login después del registro
-        self.registration_window.registration_complete.connect(self.show_login)
-        self.registration_window.registration_cancelled.connect(self.show_login)
-        self.registration_window.show()
-
-    def show_chat(self, user_id, username):
-        if self.login_window:
-            self.login_window.close()
-            self.login_window = None
-        
-        # Comprobar si el proveedor Y el motor de chat se cargaron correctamente
-        if not self.chat_engine:
-            print("No se puede iniciar el chat porque el proveedor de LLM no se cargó.")
-            # Aquí deberías mostrar un error al usuario y quizás volver al login o cerrar.
-            # Por ejemplo, con un QMessageBox.
-            sys.exit(1) # Salir si no hay modelo, ya que la app no puede funcionar.
-            return
-
-        # Pasamos el ChatEngine y el UserService a la interfaz de chat.
-        self.chat_window = ChatInterface(
-            user_id=user_id, 
-            username=username, 
-            chat_engine=self.chat_engine, 
-            user_service=self.user_service)
-        if self.app_icon:
-            self.chat_window.setWindowIcon(self.app_icon)
-        self.chat_window.logout_requested.connect(self.show_login)
-        # El controlador es responsable de mostrar la ventana.
-        self.chat_window.show()
-
-def initialize_ollama_provider():
-    """
-    Intenta inicializar y devolver el proveedor de Ollama.
-    Asume que ya se ha verificado que Ollama es una opción viable.
-    """
-    from app.ollama_manager import OllamaManager
-    
-    print("[main_qt.py] Inicializando OllamaProvider...")
-    ollama_manager = OllamaManager()
-    local_ollama_models = ollama_manager.get_local_models()
-
-    # Esta comprobación es una salvaguarda, pero la lógica principal está en el despachador.
-    if not local_ollama_models:
-        return None, "No se encontraron modelos locales en Ollama."
-
-    # Usar el primer modelo disponible en Ollama
-    first_model_name = local_ollama_models[0]['name']
-    print(f"[main_qt.py] Usando el primer modelo de Ollama encontrado: {first_model_name}")
-    try:
-        provider = OllamaProvider(model_name=first_model_name)
-        return provider, None
-    except Exception as e:
-        return None, f"Falló la inicialización de OllamaProvider con el modelo '{first_model_name}': {e}"
-
-# --- COPIA Y REEMPLAZA TU FUNCIÓN ACTUAL CON ESTA ---
-
-def initialize_local_provider(parent=None, app_icon=None):
-    """
-    Inicializa y devuelve el proveedor local Llama.cpp (GGUF).
-    Esta versión está optimizada para funcionar en un entorno empaquetado (cx_Freeze).
-    """
-    print("[main_qt.py] Intentando inicializar LlamaCppProvider...")
-
-    # 1. Determinar la ruta base (funciona en desarrollo y empaquetado)
-    if getattr(sys, 'frozen', False):
-        # Si es un .exe, la base es el directorio del ejecutable
-        base_path = os.path.dirname(sys.executable)
-    else:
-        # Si es un script .py, la base es el directorio del script
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    
-    print(f"[main_qt.py] Directorio base de la aplicación detectado: {base_path}")
-
-    # 2. Construir la ruta absoluta al modelo
-    model_file_path = os.path.join(base_path, "models", "model.gguf")
-    print(f"[main_qt.py] Ruta absoluta calculada para el modelo GGUF: {model_file_path}")
-
-    # 3. Verificar si el modelo existe en la ruta esperada
-    if not os.path.exists(model_file_path):
-        print(f"[ERROR] No se encontró el modelo en la ruta por defecto: {model_file_path}")
-        # (Tu lógica para buscar el archivo manualmente es buena, la mantenemos)
-        msg_box = QMessageBox(parent)
-        msg_box.setIcon(QMessageBox.Icon.Warning)
-        msg_box.setText("<b>Modelo Local no Encontrado</b>")
-        msg_box.setInformativeText(
-            f"El archivo 'model.gguf' no se encontró en la carpeta 'models'.\n\n"
-            "¿Deseas buscar el archivo manualmente?"
-        )
-        msg_box.setWindowTitle("Seleccionar Modelo Local")
-        if app_icon: msg_box.setWindowIcon(app_icon)
-        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        
-        if msg_box.exec() == QMessageBox.StandardButton.Yes:
-            file_path, _ = QFileDialog.getOpenFileName(parent, "Selecciona un archivo de modelo GGUF", "", "Modelos GGUF (*.gguf)")
-            if file_path:
-                model_file_path = file_path
-            else:
-                return None, "No se seleccionó ningún archivo. La aplicación no puede continuar."
+        """Muestra la ventana de registro."""
+        self.login_widget.hide()
+        self.registration_widget = RegistrationWidget(self.user_service)
+        # The traceback indicates 'registration_success' does not exist, but 'registration_cancelled' does.
+        # This is likely a typo in the RegistrationWidget class, as 'back_to_login' handles the cancel action.
+        # We connect to 'registration_cancelled' to handle success and prevent a crash.
+        # The ideal fix is to rename the signal in RegistrationWidget.py to 'registration_success'.
+        if hasattr(self.registration_widget, 'registration_cancelled'):
+            self.registration_widget.registration_cancelled.connect(self.handle_registration_success)
         else:
-            return None, "Se requiere un modelo local para continuar sin Ollama."
+            self.registration_widget.registration_success.connect(self.handle_registration_success)
+        self.registration_widget.back_to_login.connect(self.handle_back_to_login)
+        self.registration_widget.show()
 
-    # --- LA SOLUCIÓN CLAVE PARA [WinError 267] ---
-    provider = None
-    try:
-        # Guardamos el directorio de trabajo actual
-        cwd_original = os.getcwd()
-        # Cambiamos al directorio donde está el .exe (o el script)
-        # Esto asegura que Llama.cpp encuentre sus archivos .dll
-        os.chdir(base_path)
-        print(f"[main_qt.py] Directorio de trabajo cambiado temporalmente a: {base_path}")
+    def handle_logout(self):
+        """Maneja el cierre de sesión."""
+        print("[main_qt.py][MainController][handle_logout] Logout solicitado.")
+        # The ChatInterface closes itself after emitting 'logout_requested'.
+        # We just need to nullify the reference and show the login screen.
+        self.chat_interface = None
+        self.show_login()
 
-        print(f"[main_qt.py] Cargando modelo GGUF desde: {model_file_path}")
-        # Importante: LlamaCppProvider se crea DENTRO del bloque try
-        provider = LlamaCppProvider(
-            model_path=model_file_path,
-            verbose=True  # Mantenemos verbose=True para depurar
-        )
-        print("[main_qt.py] Proveedor LlamaCppProvider creado exitosamente.")
-        return provider, None
+    def handle_registration_success(self):
+        """Maneja el registro exitoso volviendo a la pantalla de login."""
+        self.registration_widget.close()
+        self.login_widget.show()
 
-    except Exception as e:
-        # Capturamos el error para mostrarlo de forma clara
-        import traceback
-        traceback.print_exc() # Imprime el error completo en el log
-        error_message = f"No se pudo cargar el archivo de modelo GGUF '{os.path.basename(model_file_path)}'.\n\nCausa: {e}"
-        return None, error_message
-
-    finally:
-        # Nos aseguramos de restaurar el directorio de trabajo original
-        if 'cwd_original' in locals():
-            os.chdir(cwd_original)
-            print(f"[main_qt.py] Directorio de trabajo restaurado a: {cwd_original}")
-
-def initialize_provider(parent=None, app_icon=None):
-    """
-    Determina el mejor proveedor disponible de forma inteligente.
-    Esta versión modificada permite que la aplicación inicie sin un modelo cargado.
-    """
-    print("\n--- CONFIGURACIÓN DEL PROVEVEDOR LLM ---")
-    print("[main_qt.py] Iniciando la aplicación sin un modelo LLM cargado por defecto.")
-    return None, "No se cargó ningún modelo LLM al inicio. Por favor, selecciona uno manualmente."
-
-def show_critical_error(app_icon, title, text, informative_text):
-    """Muestra un cuadro de diálogo de error crítico y sale de la aplicación."""
-    msg_box = QMessageBox()
-    msg_box.setIcon(QMessageBox.Icon.Critical)
-    msg_box.setText(f"<b>{title}</b>")
-    msg_box.setInformativeText(informative_text)
-    msg_box.setWindowTitle("Error de Inicialización")
-    msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
-    if app_icon:
-        msg_box.setWindowIcon(app_icon)
-    msg_box.exec()
-    sys.exit(1)
+    def handle_back_to_login(self):
+        self.registration_widget.close()
+        self.login_widget.show()
 
 def main():
-    """Función principal que inicializa y ejecuta la aplicación."""
-    print("[main_qt.py][main()] Función principal que inicializa y ejecuta la aplicación. ")
-    import socket    
-    # --- Comprobación de instancia única (mejorada) ---
-    # El socket debe mantenerse en una variable para mantener el bloqueo del puerto.
-    # Si bind() falla, otra instancia se está ejecutando.
-    lock_socket = socket.socket()
-    print("[main_qt.py][main()] Comprobando si hay otra instancia en ejecucion...")
-    try:
-        lock_socket.bind(("localhost", 65432))
-    except OSError:
-        print("Otra instancia ya se está ejecutando.")
-        # Una app con GUI podría mostrar un QMessageBox aquí, pero como QApplication
-        # aún no está inicializado, simplemente salimos.
-        sys.exit(0)
-    # --- Inicialización de la Aplicación ---
-    # Este código se mueve fuera del bloque condicional para que siempre se ejecute.
-    print("[main_qt.py][main()] Iniciando la aplicación...]")
-    app = QApplication(sys.argv)
-    print("[main_qt.py][main()] Aplicación inicializada.")
-    app_icon = None
-    icon_path = resource_path('ui/assets/app_icon.ico')
-    if icon_path.exists():
-        app_icon = QIcon(str(icon_path))
-        app.setWindowIcon(app_icon)
-        print("[main_qt.py][main()] Icono de la aplicación cargado.")
-    else:
-        print(f"ADVERTENCIA: No se encontró el icono de la aplicación en {icon_path}")
-    
-    from ui.qt_styles import apply_additional_login_styles
-    apply_additional_login_styles(app)
-    from ui.qt_styles import apply_futuristic_theme
-    apply_futuristic_theme(app)
-
-    # --- LÓGICA DE INICIALIZACIÓN HÍBRIDA ---
-    # 1. Inicializar el mejor proveedor disponible (Ollama o GGUF).
-    print("[main_qt.py][main()] Iniciando proveedor de Ollama...")
-    provider, error_message = initialize_provider(parent=None, app_icon=app_icon)
-
-    if not provider:
-        # Si no hay proveedor al inicio, se inicializa el chat_engine con un proveedor nulo
-        # y se muestra un mensaje informativo al usuario.
-        print("[main_qt.py][main()] No se cargó ningún proveedor al inicio. La aplicación iniciará sin un modelo activo.")
-        
-        # Crear un proveedor dummy/nulo para que la aplicación pueda iniciar.
-        class NullLLMProvider(BaseLLMProvider):
-            def __init__(self):
-                super().__init__(model_identifier="Ninguno")
-            def query(self, messages: list, format: str = None) -> str:
-                return "Por favor, selecciona un modelo LLM para comenzar a chatear."
-            def shutdown(self):
-                pass
-        provider = NullLLMProvider()
-        QMessageBox.information(None, "Inicio de la Aplicación",
-                                "La aplicación se ha iniciado sin un modelo LLM cargado. "
-                                "Por favor, ve a \'Modelo\' en la barra superior para seleccionar o descargar uno.")
-
-    # 2. Si el proveedor es válido, crear el controlador y ejecutar la aplicación.
-    controller = ApplicationController(provider=provider, app_icon=app_icon)
-    try:
-        controller.show_login()
-        return app.exec()
-    finally:
-        controller.shutdown()
+    """Punto de entrada principal para la aplicación."""
+    load_dotenv() # Cargar variables de entorno desde .env
+    controller = MainController()
+    controller.run()
 
 if __name__ == "__main__":
-    logger = setup_logging()
-    print("🚀 Iniciando Martin LLM...")
-    exit_code = 0
-    try:
-        # Llamar a la función principal que contiene toda la lógica de la aplicación.
-        exit_code = main()
-    except Exception as e:
-        print(f"💥 Excepción no controlada en el nivel más alto: {e}")
-        import traceback
-        traceback.print_exc()
-        exit_code = 1  # Indicar un error
-    finally:
-        logger.close()
-        print(f"🛑 Martin LLM cerrado. Código de salida: {exit_code}")
-        sys.exit(exit_code)
+    main()

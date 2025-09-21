@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # ui/login_widget.py (Versión Mejorada)
 
-from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QLineEdit, QPushButton, QCheckBox, QMessageBox,
                              QFrame, QSizePolicy, QDialog, QDialogButtonBox)
 from PyQt6.QtCore import Qt, pyqtSignal
@@ -10,12 +10,12 @@ import re
 import os
 from pathlib import Path
 
-from .custom_widgets import FramelessWindowMixin, CustomTitleBar
+from .custom_widgets import FramelessWindowMixin, CustomTitleBar, FadeInMixin
 
 # Importación relativa para acceder al paquete 'app' desde 'ui'
 from app.services.login_service import UserService
 
-class PasswordResetDialog(QDialog):
+class PasswordResetDialog(FadeInMixin, QDialog, FramelessWindowMixin):
     """Diálogo para restablecer contraseña"""
     
     def __init__(self, user_service: UserService, parent=None):
@@ -106,16 +106,17 @@ class PasswordResetDialog(QDialog):
             QMessageBox.critical(self, "Error", 
                                 "No se encontró una cuenta con esos datos. Verifica tu usuario y correo.")
 
-class LoginWidget(QMainWindow, FramelessWindowMixin):
+class LoginWidget(FadeInMixin, QMainWindow, FramelessWindowMixin):
     """Widget de login con tema sci-fi para PyQt6"""
     
     # Señal emitida cuando el login es exitoso
     login_success = pyqtSignal(str, str)  # user_id, username
+    
     registration_requested = pyqtSignal() # Emitida cuando el usuario quiere registrarse
     
     def __init__(self, user_service: UserService, parent=None):
         super().__init__(parent)
-        print("[DEBUG] Creando LoginWidget")
+        print("[LoginWidget] __init__: Creando widget de login.")
         
         if not user_service:
             raise ValueError("LoginWidget requiere una instancia de UserService.")
@@ -124,11 +125,31 @@ class LoginWidget(QMainWindow, FramelessWindowMixin):
         self._init_frameless_mixin()
         self.setup_ui()
         self.load_remembered_credentials()
-        self.setFixedSize(850, 550)
+
+        # --- Ajuste dinámico del tamaño de la ventana ---
+        screen = QApplication.primaryScreen()
+        if screen:
+            available_geometry = screen.availableGeometry()
+            screen_width = available_geometry.width()
+            screen_height = available_geometry.height()
+            
+            window_width = int(screen_width * 0.5)
+            window_height = int(screen_height * 0.6)
+            
+            self.resize(window_width, window_height)
+            
+            # Centrar la ventana
+            self.move(int((screen_width - window_width) / 2), int((screen_height - window_height) / 2))
+            
+            self.setMinimumSize(int(screen_width * 0.4), int(screen_height * 0.5))
+        else:
+            # Fallback a un tamaño fijo si no se puede obtener la pantalla
+            self.resize(850, 550)
+            self.setMinimumSize(800, 500)
         
     def setup_ui(self):
         """Configura la interfaz de usuario"""
-        print("[DEBUG] LoginWidget.setup_ui llamado")
+        print("[LoginWidget] setup_ui: Configurando la interfaz de usuario del login.")
         
         main_container = QWidget()
         window_layout = QVBoxLayout(main_container)
@@ -148,7 +169,7 @@ class LoginWidget(QMainWindow, FramelessWindowMixin):
         
         # Panel izquierdo para la imagen
         image_panel = QWidget()
-        image_panel.setMinimumSize(400, 500)
+        # image_panel.setMinimumSize(400, 500) # Eliminado para flexibilidad
         image_layout = QVBoxLayout(image_panel)
         image_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
@@ -158,7 +179,8 @@ class LoginWidget(QMainWindow, FramelessWindowMixin):
         
         # Buscar la imagen en diferentes ubicaciones posibles
         possible_paths = [
-            "ui/assets/imagen_portada_login.png",
+            "ui\\assets\\Generated Image September 06, 2025 - 11_02AM.png",
+
             "assets/login_background.png", 
             "login_background.png"
         ]
@@ -210,7 +232,7 @@ class LoginWidget(QMainWindow, FramelessWindowMixin):
         container_frame = QFrame()
         container_frame.setObjectName("loginContainerFrame")
         container_frame.setFrameStyle(QFrame.Shape.StyledPanel)
-        container_frame.setMinimumSize(380, 450)
+        # container_frame.setMinimumSize(380, 450) # Eliminado para flexibilidad
         
         # Layout del contenedor
         container_layout = QVBoxLayout(container_frame)
@@ -293,12 +315,15 @@ class LoginWidget(QMainWindow, FramelessWindowMixin):
         
         container_layout.addLayout(button_layout)
         
+        
+        
         # Agregar el contenedor al panel del formulario
         form_layout.addWidget(container_frame)
         
-        # Agregar ambos paneles al layout principal
-        main_layout.addWidget(image_panel)
-        main_layout.addWidget(form_panel)
+        # Se asignan factores de estiramiento para que los paneles se redimensionen proporcionalmente.
+        # El panel del formulario (3) obtiene más espacio que el de la imagen (2).
+        main_layout.addWidget(image_panel, 2)
+        main_layout.addWidget(form_panel, 3)
         
     def show_password_reset_dialog(self):
         """Muestra el diálogo de recuperación de contraseña"""
@@ -307,7 +332,7 @@ class LoginWidget(QMainWindow, FramelessWindowMixin):
         
     def login(self):
         """Maneja el proceso de login"""
-        print("[DEBUG] LoginWidget.login llamado")
+        print("[LoginWidget] login: Intento de inicio de sesión.")
         
         username = self.username_input.text().strip()
         password = self.password_input.text().strip()
@@ -321,7 +346,7 @@ class LoginWidget(QMainWindow, FramelessWindowMixin):
         
         if auth_result:
             user_id, username = auth_result
-            print(f"[DEBUG] Resultado autenticación: user_id={user_id}, username={username}")
+            print(f"[LoginWidget] login: Autenticación exitosa para '{username}'. Emitiendo señal login_success.")
             
             # Manejar recordarme
             if self.remember_checkbox.isChecked():
@@ -334,7 +359,7 @@ class LoginWidget(QMainWindow, FramelessWindowMixin):
             self.login_success.emit(user_id, username)
             
         else:
-            print("[DEBUG] Login fallido")
+            print("[LoginWidget] login: Autenticación fallida.")
             QMessageBox.critical(self, "Error", "Usuario o contraseña incorrectos")
             self.username_input.clear()
             self.password_input.clear()
@@ -342,9 +367,12 @@ class LoginWidget(QMainWindow, FramelessWindowMixin):
             
     def load_remembered_credentials(self):
         """Carga las credenciales recordadas si existen"""
+        print("[LoginWidget] load_remembered_credentials: Intentando cargar credenciales recordadas.")
         username, password = self.user_service.get_remembered_user()
         if username and password:
             self.username_input.setText(username)
             self.password_input.setText(password)
             self.remember_checkbox.setChecked(True)
-            print("[DEBUG] Credenciales recordadas cargadas")
+            print("[LoginWidget] load_remembered_credentials: Credenciales encontradas y cargadas.")
+        else:
+            print("[LoginWidget] load_remembered_credentials: No se encontraron credenciales.")

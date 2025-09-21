@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 # app/workers.py
 
+import time
+import time
 from PyQt6.QtCore import QObject, pyqtSignal
 
 # --- WORKER PARA CHAT NORMAL ---
@@ -10,18 +12,23 @@ class Worker(QObject):
     error_occurred = pyqtSignal(str)
 
     def __init__(self, chat_engine, user_message, parent=None):
+        print(f"[workers.py][Worker][__init__] Inicializando Worker con mensaje del usuario: {user_message}")
         super().__init__(parent)
         self.chat_engine = chat_engine
         self.user_message = user_message
+        print(f"[workers.py][Worker][__init__] chat_engine.provider: {self.chat_engine.provider}")
+        print(f"[workers.py][Worker][__init__] chat_engine.history length: {len(self.chat_engine.history) if self.chat_engine.history else 'N/A'}")
 
     def run(self):
         try:
+            print(f"[Worker] Procesando mensaje del usuario: {self.user_message}")
             # The user message is already in chat_engine.history from the UI thread.
             # This worker's job is to get the next response from the provider
             # without modifying the history. The UI thread will do that.
             if not self.chat_engine.provider:
                 raise ValueError("El proveedor del modelo no está configurado en ChatEngine.")
             response = self.chat_engine.provider.query(self.chat_engine.history)
+            print(f"[Worker] Respuesta recibida: {response}")
             self.response_ready.emit(response)
         except Exception as e:
             self.error_occurred.emit(f"Error en el worker de chat: {e}")
@@ -118,6 +125,9 @@ class CleanupWorker(QObject):
         if self.ollama_manager:
             self.ollama_manager.stop()
             print("[CleanupWorker] Manager de Ollama detenido.")
+
+        # Añadir un pequeño retraso para que la ventana de cierre sea visible
+        time.sleep(1)
 
         print("[CleanupWorker] Limpieza finalizada.")
         self.finished.emit()

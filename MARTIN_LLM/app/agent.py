@@ -108,7 +108,7 @@ If you are finished, respond like this:
                 response_text = response_text.strip()[7:-3].strip()
             return json.loads(response_text)
         except json.JSONDecodeError:
-            print(f"[Agent] Error: No se pudo parsear la respuesta JSON: {response_text}")
+            print(f"[agent.py][_parse_llm_response] Error: No se pudo parsear la respuesta JSON: {response_text}")
             return None
 
     def run(self, user_message: str) -> str:
@@ -120,7 +120,7 @@ If you are finished, respond like this:
         self.history.append({"role": "user", "content": f"User objective: {user_message}"})
 
         for i in range(5):  # Límite de seguridad de 5 pasos para evitar bucles infinitos
-            print(f"\n--- AGENT STEP {i+1} ---")
+            print(f"[agent.py][run] --- AGENT STEP {i+1} ---")
             
             # 1. PENSAR: El LLM decide la siguiente acción.
             messages_for_provider = [{"role": "system", "content": self.system_prompt}] + self.history
@@ -136,7 +136,7 @@ If you are finished, respond like this:
 
             if not action_data:
                 observation = "Error: Your last response was not a valid JSON object. You MUST respond with a valid JSON object containing 'thought' and 'action' keys. Please try again."
-                print(f"Observation: {observation}")
+                print(f"[agent.py][run] Observation: {observation}")
                 self.history.append({"role": "system", "content": f"Observation: {observation}"})
                 continue
 

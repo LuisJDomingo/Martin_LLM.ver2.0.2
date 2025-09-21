@@ -126,7 +126,7 @@ def main():
             response = chat.ask(user_input)
 
 
-            print(" " * 20, end="\r")  # Limpiar "Procesando..."
+print("[chat_test.py][main] " * 20, end="\r")  # Limpiar "Procesando..."
 
 
             

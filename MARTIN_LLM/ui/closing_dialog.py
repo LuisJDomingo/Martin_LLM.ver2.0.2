@@ -4,8 +4,9 @@
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar, QFrame
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
+from .custom_widgets import FadeInMixin
 
-class ClosingDialog(QDialog):
+class ClosingDialog(FadeInMixin, QDialog):
     """Ventana para mostrar durante el cierre de la aplicación."""
     
     def __init__(self, parent=None):
@@ -44,7 +45,9 @@ class ClosingDialog(QDialog):
         
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 0) # Modo indeterminado
-        frame_layout.addWidget(self.progress_bar)
+        self.progress_bar.setFixedHeight(25)
+        self.progress_bar.setFixedWidth(350)
+        frame_layout.addWidget(self.progress_bar, alignment=Qt.AlignmentFlag.AlignCenter)
         
         main_layout.addWidget(main_frame)
         

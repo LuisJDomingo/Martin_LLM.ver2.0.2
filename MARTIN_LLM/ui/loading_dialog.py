@@ -4,8 +4,9 @@
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar, QFrame
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont
+from .custom_widgets import FadeInMixin
 
-class LoadingDialog(QDialog):
+class LoadingDialog(FadeInMixin, QDialog):
     """Ventana de carga con tema sci-fi para PyQt6"""
     
     # Señal emitida cuando la carga está completa
@@ -63,7 +64,21 @@ class LoadingDialog(QDialog):
         self.progress_bar.setMinimum(0)
         self.progress_bar.setMaximum(100)
         self.progress_bar.setValue(0)
-        # El estilo se hereda del stylesheet global
+        self.progress_bar.setFixedWidth(350)
+        self.progress_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.progress_bar.setTextVisible(True)
+        # Forzar altura y estilo del texto vía stylesheet para sobreescribir estilos globales
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                height: 40px;
+                min-height: 40px;
+                max-height: 40px;
+            }
+            QProgressBar::chunk {
+                background-color: #4a90e2;
+            }
+        """)
+        # El estilo se hereda del stylesheet global de la aplicación
         frame_layout.addWidget(self.progress_bar, alignment=Qt.AlignmentFlag.AlignCenter)
         
         main_layout.addWidget(main_frame)

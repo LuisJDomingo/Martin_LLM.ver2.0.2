@@ -67,7 +67,7 @@ class OllamaManager:
         try:
             response = requests.delete(self.api_delete_url, json=payload, timeout=30)
             response.raise_for_status()
-            print(f"[OllamaManager] Modelo '{model_name}' desinstalado exitosamente.")
+            print(f"[ollama_manager.py][OllamaManager][uninstall_model] Modelo '{model_name}' desinstalado exitosamente.")
             return True
         except requests.RequestException as e:
             print(f"[OllamaManager] Error al desinstalar el modelo '{model_name}': {e}")
@@ -84,7 +84,7 @@ class OllamaManager:
                 response.raise_for_status()
                 return False
         except requests.RequestException as e:
-            print(f"[OllamaManager] Error al verificar el modelo '{model_name}': {e}")
+            print(f"[ollama_manager.py][OllamaManager][is_model_available] Error al verificar el modelo '{model_name}': {e}")
             # Asumir que no está disponible si hay un error de conexión.
             return False
 
