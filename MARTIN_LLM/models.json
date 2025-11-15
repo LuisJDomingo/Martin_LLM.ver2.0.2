@@ -1,0 +1,136 @@
+{
+  "models": [
+    {
+      "name": "Llama 3",
+      "download_name": "llama3",
+      "size": "4.7 GB",
+      "parameters": "8B",
+      "quantization": "Q4_K_M",
+      "context_length": "8192",
+      "description": "Modelo de lenguaje de propósito general de Meta.",
+      "details": "Llama 3 es la última generación de los modelos de lenguaje de código abierto de Meta. Está diseñado para una amplia gama de aplicaciones, desde la conversación general hasta la generación de texto complejo. La versión 8B es ideal para un equilibrio entre rendimiento y requisitos de hardware.",
+      "tags": ["chat", "general"],
+      "download_url": "https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct.Q4_K_M.gguf"
+    },
+    {
+      "name": "Llama 3:70B",
+      "download_name": "llama3:70b",
+      "size": "40 GB",
+      "parameters": "70B",
+      "quantization": "Q4_K_M",
+      "context_length": "8192",
+      "description": "Versión más grande y potente del modelo Llama 3.",
+      "details": "La variante de 70 mil millones de parámetros de Llama 3. Ofrece un rendimiento de vanguardia para tareas complejas, superando a muchos otros modelos disponibles. Requiere hardware significativamente más potente.",
+      "tags": ["chat", "general", "research"],
+      "download_url": "https://huggingface.co/QuantFactory/Meta-Llama-3-70B-Instruct-GGUF/resolve/main/Meta-Llama-3-70B-Instruct.Q4_K_M.gguf"
+    },
+    {
+      "name": "CodeGemma",
+      "download_name": "codegemma",
+      "size": "4.2 GB",
+      "parameters": "7B",
+      "quantization": "Q4_K_M",
+      "context_length": "8192",
+      "description": "Modelo especializado en la generación y completado de código.",
+      "details": "CodeGemma, desarrollado por Google, está optimizado para tareas de programación. Soporta múltiples lenguajes como Python, JavaScript, Java, C++, etc. Es ideal para desarrolladores que buscan asistencia en la escritura de código, depuración y aprendizaje.",
+      "tags": ["code", "development"],
+      "download_url": "https://huggingface.co/bartowski/codegemma-2b-GGUF/resolve/main/codegemma-2b-Q4_K_M.gguf"
+    },
+    {
+      "name": "LLaVA",
+      "download_name": "llava",
+      "size": "4.5 GB",
+      "parameters": "7B",
+      "quantization": "Q4_K_M",
+      "context_length": "4096",
+      "description": "Asistente multimodal de lenguaje y visión.",
+      "details": "LLaVA (Large Language and Vision Assistant) puede entender tanto texto como imágenes. Permite realizar conversaciones sobre imágenes, describir lo que contienen, y responder preguntas visuales. Es perfecto para aplicaciones que requieren análisis de contenido visual.",
+      "tags": ["vision", "multimodal", "chat"],
+      "download_url": "https://huggingface.co/cjpais/llava-v1.6-34B-gguf/resolve/main/llava-v1.6-34b.Q4_K_M.gguf"
+    },
+    {
+      "name": "Gemma",
+      "download_name": "gemma",
+      "size": "5.0 GB",
+      "parameters": "7B",
+      "quantization": "Q4_0",
+      "context_length": "8192",
+      "description": "Familia de modelos abiertos y ligeros de Google.",
+      "details": "Gemma es una familia de modelos de Google construidos a partir de la misma investigación que los modelos Gemini. La versión 7B es un modelo de alto rendimiento, ideal para una variedad de tareas de texto, incluyendo respuesta a preguntas y resúmenes.",
+      "tags": ["chat", "general"],
+      "download_url": "https://huggingface.co/TheBloke/Gemma-7B-it-GGUF/resolve/main/gemma-7b-it.Q4_0.gguf NO FUNCIONA"
+    },
+    {
+      "name": "Mistral",
+      "download_name": "mistral",
+      "size": "4.1 GB",
+      "parameters": "7B",
+      "quantization": "Q4_K_M",
+      "context_length": "8192",
+      "description": "Modelo de lenguaje de alto rendimiento con capacidad de tool-use.",
+      "details": "El modelo 7B de Mistral AI es conocido por su gran rendimiento y eficiencia. Las versiones recientes también incluyen una sólida capacidad para el uso de herramientas (function calling), lo que lo hace versátil para tareas de automatización.",
+      "tags": ["chat", "general", "tool-use"],
+      "download_url": "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf"
+    },
+    {
+      "name": "Phi-3 Mini",
+      "download_name": "phi3",
+      "size": "2.2 GB",
+      "parameters": "3.8B",
+      "quantization": "Q4_0",
+      "context_length": "4096",
+      "description": "Modelo de lenguaje pequeño y potente de Microsoft.",
+      "details": "Phi-3 Mini es un 'Small Language Model' (SLM) que ofrece un rendimiento sorprendente para su tamaño. Es capaz de ejecutarse en dispositivos con recursos limitados, incluyendo móviles, sin sacrificar la calidad en tareas de razonamiento y lenguaje.",
+      "tags": ["chat", "general", "lightweight"],
+      "download_url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4_0.gguf NO FUNCIONA"
+    },
+    {
+      "name": "Command R+",
+      "download_name": "command-r-plus",
+      "size": "60 GB",
+      "parameters": "104B",
+      "quantization": "Q4_0",
+      "context_length": "128k",
+      "description": "Modelo a escala empresarial de Cohere para RAG y herramientas.",
+      "details": "Command R+ es un modelo de Cohere optimizado para casos de uso empresariales, destacando en 'Retrieval Augmented Generation' (RAG) y el uso de herramientas. Su gran ventana de contexto lo hace ideal para procesar y analizar documentos extensos.",
+      "tags": ["chat", "RAG", "tool-use", "enterprise"],
+      "download_url": "https://huggingface.co/TheBloke/Command-R-Plus-GGUF/resolve/main/command-r-plus.Q4_0.gguf NO FUNCIONA"
+    },
+    {
+      "name": "dolphin-phi",
+      "download_name": "dolphin-phi",
+      "size": "1.6 GB",
+      "parameters": "2.7B",
+      "quantization": "Q4_K_M",
+      "context_length": "2048",
+      "description": "Modelo de lenguaje sin censura basado en Phi-2.",
+      "details": "Dolphin-phi es un modelo de 2.7B de parámetros basado en Phi-2 de Microsoft. Es conocido por sus capacidades de razonamiento y lenguaje, y por no estar censurado. Es ideal para desarrolladores que buscan un modelo potente y sin restricciones.",
+      "tags": ["chat", "uncensored", "development"],
+      "download_url": "https://huggingface.co/TheBloke/dolphin-2_6-phi-2-GGUF/resolve/main/dolphin-2_6-phi-2.Q4_K_M.gguf"
+    },
+    {
+      "name": "tinydolphin",
+      "download_name": "tinydolphin",
+      "size": "1.1 GB",
+      "parameters": "1.1B",
+      "quantization": "Q4_K_M",
+      "context_length": "2048",
+      "description": "Un modelo de lenguaje pequeño y eficiente.",
+      "details": "TinyDolphin es una versión afinada de TinyLlama con el dataset 'Dolphin'. Con 1.1B de parámetros, es ideal para dispositivos con recursos limitados. Es un modelo experimental, pero muy capaz para su tamaño.",
+      "tags": ["chat", "lightweight", "experimental"],
+      "download_url": "https://huggingface.co/TheBloke/TinyDolphin-2.8-1.1B-GGUF/resolve/main/tinydolphin-2.8-1.1b.Q4_K_M.gguf NO FUNCIONA"
+    },
+    {
+      "name": "tinyllama",
+      "download_name": "tinyllama",
+      "size": "637 MB",
+      "parameters": "1.1B",
+      "quantization": "Q4_K_M",
+      "context_length": "2048",
+      "description": "Un modelo de lenguaje compacto de 1.1B de parámetros.",
+      "details": "TinyLlama es un modelo de 1.1B de parámetros pre-entrenado en 3T tokens. Su pequeño tamaño lo hace ideal para aplicaciones con memoria y poder computacional limitados. Es un proyecto de código abierto.",
+      "tags": ["chat", "lightweight", "open-source"],
+      "download_url": "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
+    }
+  ]
+}

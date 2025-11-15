@@ -1,0 +1,13 @@
+# Auto-detect text files and ensure they have LF line endings in the repo.
+* text=auto
+# Explicitly declare text files to have LF line endings for consistency.
+*.py text eol=lf
+*.txt text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.ini text eol=lf
+*.bin filter=lfs diff=lfs merge=lfs -text
+*.gguf filter=lfs diff=lfs merge=lfs -text
+*.pt filter=lfs diff=lfs merge=lfs -text
+*.onnx filter=lfs diff=lfs merge=lfs -text
+*.ckpt filter=lfs diff=lfs merge=lfs -text

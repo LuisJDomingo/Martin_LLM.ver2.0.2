@@ -1,0 +1,39 @@
+# Archivos de entorno
+.env
+.env.*
+
+# Entornos virtuales de Python
+/venv/
+/venv_py311/
+/.venv/
+
+# Archivos de caché y artefactos de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# Artefactos de compilación y distribución
+/build/
+/dist/
+*.spec
+/PRODUCTION/
+
+
+# Archivos de configuración de IDEs y editores
+.vscode/
+.idea/
+.pytest_cache/
+
+# Archivos de sistema operativo
+.DS_Store
+Thumbs.db
+
+# Logs y datos de la aplicación
+*.log
+/data/
+
+# Modelos de IA (archivos grandes)
+/models/
+*.gguf

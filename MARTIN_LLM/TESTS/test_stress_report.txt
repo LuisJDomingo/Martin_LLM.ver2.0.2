@@ -1,0 +1,30 @@
+============================================================
+               INFORME DE PRUEBAS DE ESTRÉS
+============================================================
+Fecha: 2025-07-22 00:06:36
+Total de Ejecuciones por Prueba: 10
+
+--- Módulo: test_agents.py ---
+  - test_agent_handles_finish_action:                             Éxitos: 10, Fallos: 0
+  - test_agent_handles_invalid_json:                              Éxitos: 10, Fallos: 0
+  - test_agent_handles_unknown_tool:                              Éxitos: 10, Fallos: 0
+  - test_agent_parses_valid_json_and_calls_tool:                  Éxitos: 10, Fallos: 0
+  - test_reasoner_generates_valid_plan:                           Éxitos: 10, Fallos: 0
+  - test_reasoner_handles_invalid_plan_json:                      Éxitos: 10, Fallos: 0
+
+--- Módulo: test_loader.py ---
+  - test_model_loading:                                           Éxitos: 10, Fallos: 0
+
+--- Módulo: test_services.py ---
+  - test_authenticate_user_failure_wrong_password:                Éxitos: 10, Fallos: 0
+  - test_authenticate_user_success:                               Éxitos: 10, Fallos: 0
+  - test_register_user_failure_already_exists:                    Éxitos: 10, Fallos: 0
+  - test_register_user_success:                                   Éxitos: 10, Fallos: 0
+
+============================================================
+Resumen General:
+  - Total de Pruebas Ejecutadas (incluye repeticiones): 110
+  - Total de Éxitos: 110
+  - Total de Fallos: 0
+  - Tasa de Éxito General: 100.00%
+============================================================
