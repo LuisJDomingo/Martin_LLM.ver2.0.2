@@ -1,6 +1,4 @@
 
-¡Buena pregunta de visión estratégica, Luis! Y me gusta porque apuntas hacia algo muy potente: tener un modelo que aprende de tus usuarios en local y evoluciona con ellos, sin depender de OpenAI, Anthropic o quien sea. Pero también es una idea con trampa: es posible, pero no tan simple ni tan rápido como suena.
-
 ⚙️ ¿Puedo entrenar mi propio modelo con las conversaciones locales?
 ✅ Sí, puedes... pero con matices:
 1. Sí puedes usar las conversaciones para entrenar un modelo personalizado.
